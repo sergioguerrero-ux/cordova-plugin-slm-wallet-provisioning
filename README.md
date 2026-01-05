@@ -1,10 +1,10 @@
 # SLM Wallet Provisioning Cordova Plugin
 
-This Cordova plugin exposes the native tokenization flows for Google Play Services Tap & Pay on Android and Apple PassKit in-app provisioning on iOS. It is intended for wallet issuers or tokenization backends that already own the necessary credentials (Tap & Pay issuer ID / PassKit provisioning entitlement).
+This Cordova plugin exposes the native tokenization flows for the Google Pay / Wallet API on Android and Apple PassKit in-app provisioning on iOS. It is intended for wallet issuers or tokenization backends that already own the necessary credentials (Gateway tokenization access, PassKit provisioning entitlement).
 
 ## Features
 
-- Android: `isReadyToPay()` and `pushTokenize()` via `TapAndPayClient`, with callbacks delivered through Cordova actions.
+- Android: `PaymentsClient.isReadyToPay()` and `PaymentDataRequest` flows via Google Pay, with callbacks delivered through Cordova actions.
 - iOS: `PKAddPaymentPassViewController` backed by the PassKit issuer provisioning APIs.
 - JavaScript bridge: `cordova.plugins.slmWallet` exposes `appleCanAdd`, `appleStartAdd`, `googleIsAvailable` and `googlePushProvision`.
 
@@ -28,24 +28,27 @@ plugin.googleIsAvailable(res => {
 }, err => console.warn(err));
 
 plugin.googlePushProvision({
-  cardholderName: 'Juan Perez',
-  last4: '4242',
-  description: 'SLM card'
+  gatewayName: 'example',
+  gatewayMerchantId: 'your-merchant-id',
+  totalPrice: '10.00',
+  currencyCode: 'USD',
+  countryCode: 'US',
+  merchantName: 'SLM Wallet',
+  environment: 'TEST'
 }, res => {
-  console.log('Provisioning intent result', res);
+  console.log('Payment data', res.paymentData);
 }, err => {
   console.warn('Provision failed', err);
 });
 ```
 
-The `googlePushProvision` callback fires after the Tap & Pay UI completes; inspect `res.extras` for provider-specific data. For production you still need to call your backend to retrieve activation data, encrypted pass data, and ephemeral keys, and populate the request before completing the flow.
+The `googlePushProvision` callback fires when the Google Pay UI completes. You receive the full `PaymentData` JSON (tokenization payload) in `res.paymentData`; send that payload to your gateway backend so it can create a tokenized card or payment method.
 
 ## Android Notes
 
-- Requires `com.google.android.gms:play-services-tapandpay` and `play-services-base`.
-- Add the Issuer ID, certification, and backend handshake: `TapAndPayClient.pushTokenize` returns a pending intent that must be completed via an activation data payload provided by your server.
-- The plugin checks `TapAndPayClient.isReadyToPay` before starting provisioning.
-- Handle the pending intent result in your JS layer to finalize provisioning or surface errors.
+- Requires `com.google.android.gms:play-services-wallet` and `play-services-base`.
+- Provide the gateway tokenization information your backend owns (`gatewayName` + `gatewayMerchantId`). `googlePushProvision` builds a `PaymentDataRequest`, presents Google Pay, and returns the `PaymentData` token to your JS layer.
+- The plugin checks `PaymentsClient.isReadyToPay` before starting the flow.
 
 ## iOS Notes
 
@@ -55,5 +58,5 @@ The `googlePushProvision` callback fires after the Tap & Pay UI completes; inspe
 
 ## Contributing
 
-1. Implement the missing server-side handshake for Push Tokenize (activation data) and for PassKit provisioning.
-2. Test on real devices/emulators with Google Play Services or Apple Wallet support.
+1. Implement the missing server-side handshake for your payment gateway (provide `gatewayName` + `gatewayMerchantId`) and for PassKit provisioning.
+2. Test on real devices/emulators with Google Pay / Apple Wallet support to verify the flows and inspect the returned tokens.
