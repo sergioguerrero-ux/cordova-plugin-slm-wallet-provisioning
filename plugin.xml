@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin id="cordova-plugin-slm-wallet-provisioning"
+        version="1.0.0"
+        xmlns="http://apache.org/cordova/ns/plugins/1.0"
+        xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <name>SLM Wallet Provisioning</name>
+
+  <js-module src="www/slmWallet.js" name="slmWallet">
+    <clobbers target="cordova.plugins.slmWallet" />
+  </js-module>
+
+  <!-- ANDROID -->
+  <platform name="android">
+    <config-file target="res/xml/config.xml" parent="/*">
+      <feature name="SlmWalletProvisioning">
+        <param name="android-package" value="com.slm.plugins.wallet.SlmWalletProvisioning"/>
+      </feature>
+    </config-file>
+
+    <source-file src="src/android/SlmWalletProvisioning.java"
+                 target-dir="src/com/slm/plugins/wallet" />
+
+    <framework src="com.google.android.gms:play-services-tapandpay:18.3.0" />
+    <framework src="com.google.android.gms:play-services-base:18.5.0" />
+  </platform>
+
+  <!-- iOS (Swift) -->
+  <platform name="ios">
+    <config-file target="config.xml" parent="/*">
+      <feature name="SlmWalletProvisioning">
+        <param name="ios-package" value="SlmWalletProvisioning" />
+      </feature>
+    </config-file>
+
+    <!-- Swift source -->
+    <source-file src="src/ios/SlmWalletProvisioning.swift" />
+
+    <!-- Frameworks -->
+    <framework src="PassKit.framework" />
+
+    <!-- Build settings: Swift -->
+    <preference name="SwiftVersion" value="5.0" />
+  </platform>
+
+</plugin>
