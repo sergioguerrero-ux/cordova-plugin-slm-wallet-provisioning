@@ -21,6 +21,8 @@
     <source-file src="src/android/SlmWalletProvisioning.java"
                  target-dir="src/com/slm/plugins/wallet" />
 
+    <resource-file src="src/android/build-extras.gradle" target="app/build-extras.gradle" />
+
     <framework src="com.google.android.gms:play-services-tapandpay:18.3.0" />
     <framework src="com.google.android.gms:play-services-base:18.5.0" />
   </platform>
