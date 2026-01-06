@@ -13,12 +13,12 @@ import com.google.android.gms.wallet.Wallet;
 import com.google.android.gms.wallet.WalletConstants;
 
 import org.apache.cordova.CallbackContext;
-import org.apache.cordova.CDVPlugin;
+import org.apache.cordova.CordovaPlugin;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-public class SlmWalletProvisioning extends CDVPlugin {
+public class SlmWalletProvisioning extends CordovaPlugin {
 
   private static final int LOAD_PAYMENT_DATA_REQUEST_CODE = 0x7F03;
   private CallbackContext pendingCallback;
