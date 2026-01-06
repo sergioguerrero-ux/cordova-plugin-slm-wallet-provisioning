@@ -44,6 +44,36 @@ plugin.googlePushProvision({
 
 The `googlePushProvision` callback fires when the Google Pay UI completes. You receive the full `PaymentData` JSON (tokenization payload) in `res.paymentData`; send that payload to your gateway backend so it can create a tokenized card or payment method.
 
+### Apple provisioning configuration
+
+`appleStartAdd` requires a few extra values so the iOS SDK can forward Apple's certificates/nonce to your tokenization backend. At a minimum provide the `cardId` you want to enroll (the same `card_id` the Pomelo API expects) and an authorization header for the endpoint. The plugin defaults to `https://api.pomelo.la/token-provisioning/mastercard/apple-pay`, but you can override it if you host your own proxy.
+
+```js
+const provisioningOpts = {
+  cardholderName: 'Jane Apriori',
+  last4: '4321',
+  description: 'SLM Card',
+  cardId: 'crd-1234567890',
+  tokenizationAuthorization: 'Bearer <your-access-token>'
+};
+
+plugin.appleStartAdd(provisioningOpts, res => {
+  console.log('Card added?', res.added);
+}, error => {
+  console.warn('Apple Pay provisioning failed', error);
+});
+```
+
+Additional parameters:
+
+- `cardId` / `card_id` (string, required) – the tokenized card identifier you will validate with Pomelo.
+- `tokenizationEndpoint` (string, optional) – defaults to the Pomelo Apple Pay URL above.
+- `tokenizationAuthorization` (string) – value for the `Authorization` header, or use `tokenizationAuthToken` together with `tokenizationAuthScheme` (default `Bearer`).
+- `tokenizationHeaders` (object) – extra headers such as custom tracing or tenant IDs that your backend expects.
+- `userId` / `user_id` (optional) – include a Pomelo `user_id` if the card belongs to a specific user record.
+
+The plugin sends the certificate chain, `nonce`, and `nonce_signature` as Base64 to your endpoint, and it expects a JSON body with `data.activation_data`, `data.encrypted_pass_data`, and `data.ephemeral_public_key` (also Base64). See Pomelo's Apple Pay tokenization reference for the full exchange: https://developers.pomelo.la/api-reference/cards/Tokenization/mastercard#aprovisionar-mastercard-en-apple-pay
+
 ## Android Notes
 
 - Requires `com.google.android.gms:play-services-wallet` and `play-services-base`.
