@@ -14,7 +14,7 @@
         <clobbers target="cordova.plugins.slmWallet" />
     </js-module>
     
-    <!-- iOS Platform -->
+        <!-- iOS Platform -->
     <platform name="ios">
         <config-file target="config.xml" parent="/*">
             <feature name="SLMWallet">
@@ -22,20 +22,22 @@
             </feature>
         </config-file>
         
-        <!-- AGREGAR ESTA LÍNEA -->
-        <preference name="SwiftVersion" value="$SWIFTVERSION"/>
-        
+        <!-- Archivo Swift -->
         <source-file src="src/ios/SLMWalletPlugin.swift"/>
         
+        <!-- Bridging Header (si usas Objective-C también) -->
         <header-file src="src/ios/SLMWalletPlugin-Bridging-Header.h"/>
         
+        <!-- Framework de PassKit -->
         <framework src="PassKit.framework"/>
         
-        <podspec>
-            <config>
-                <source url="https://cdn.cocoapods.org/"/>
-            </config>
-        </podspec>
+        <!-- Configuración de Swift -->
+        <config-file target="*-Info.plist" parent="CFBundleDevelopmentRegion">
+            <string>en</string>
+        </config-file>
+        
+        <!-- IMPORTANTE: Versión de Swift -->
+        <preference name="SwiftVersion" value="5.0"/>
     </platform>
     
     <!-- Android Platform -->
