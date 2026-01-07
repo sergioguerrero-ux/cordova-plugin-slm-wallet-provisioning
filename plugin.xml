@@ -6,48 +6,61 @@
     <name>SLM Wallet Provisioning</name>
     <description>Apple Wallet and Google Wallet provisioning plugin</description>
     <license>MIT</license>
+    <keywords>wallet,apple,google,passkit,payment</keywords>
     
-    <!-- AGREGAR ESTA SECCIÓN -->
-    <preference name="SWIFTVERSION" default="5.0"/>
+    <repo>https://github.com/sergioguerrero-ux/cordova-plugin-slm-wallet-provisioning.git</repo>
     
-    <js-module src="www/SLMWallet.js" name="SLMWallet">
+    <!-- ⭐ IMPORTANTE: Variable con valor por defecto ⭐ -->
+    <preference name="SWIFTVERSION" default="5.0" />
+    
+    <!-- JavaScript Interface -->
+    <js-module src="www/slmWallet.js" name="slmWallet">
         <clobbers target="cordova.plugins.slmWallet" />
     </js-module>
     
-        <!-- iOS Platform -->
+    <!-- iOS Platform -->
     <platform name="ios">
+        
+        <!-- Registrar el plugin -->
         <config-file target="config.xml" parent="/*">
-            <feature name="SLMWallet">
-                <param name="ios-package" value="SLMWalletPlugin"/>
+            <feature name="slmWallet">
+                <param name="ios-package" value="SLMWalletPlugin" />
             </feature>
         </config-file>
         
-        <!-- Archivo Swift -->
-        <source-file src="src/ios/SLMWalletPlugin.swift"/>
+        <!-- ⭐ Configurar Swift Version ⭐ -->
+        <preference name="SwiftVersion" value="$SWIFTVERSION" />
         
-        <!-- Framework de PassKit -->
-        <framework src="PassKit.framework"/>
-        
-        <!-- Configuración de Swift -->
-        <config-file target="*-Info.plist" parent="CFBundleDevelopmentRegion">
-            <string>en</string>
+        <!-- Configurar entitlement de PassKit -->
+        <config-file target="*-Info.plist" parent="com.apple.developer.payment-pass-provisioning">
+            <true/>
         </config-file>
         
-        <!-- IMPORTANTE: Versión de Swift -->
-        <preference name="SwiftVersion" value="5.0"/>
+        <!-- Archivos del plugin -->
+        <source-file src="src/ios/SLMWalletPlugin.swift" />
+        <!-- Frameworks -->
+        <framework src="PassKit.framework" />
+        
     </platform>
     
     <!-- Android Platform -->
     <platform name="android">
+        
+        <!-- Registrar el plugin -->
         <config-file target="config.xml" parent="/*">
-            <feature name="SLMWallet">
-                <param name="android-package" value="com.slm.wallet.SLMWalletPlugin"/>
+            <feature name="slmWallet">
+                <param name="android-package" value="com.slm.wallet.SLMWalletPlugin" />
             </feature>
         </config-file>
         
+        <!-- Archivos del plugin -->
         <source-file src="src/android/SLMWalletPlugin.java" 
-                     target-dir="src/com/slm/wallet"/>
+                     target-dir="src/com/slm/wallet" />
         
-        <framework src="com.google.android.gms:play-services-wallet:19.1.0"/>
+        <!-- Frameworks -->
+        <framework src="com.google.android.gms:play-services-wallet:19.1.0" />
+        <framework src="com.google.android.gms:play-services-base:18.2.0" />
+        
     </platform>
+    
 </plugin>
