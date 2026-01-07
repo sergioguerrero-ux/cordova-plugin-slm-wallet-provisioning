@@ -29,7 +29,7 @@
         </config-file>
         
         <!-- ⭐ Configurar Swift Version ⭐ -->
-        <preference name="SwiftVersion" value="$SWIFTVERSION" />
+        <preference name="SwiftVersion" value="5.0" />
         
         <!-- Configurar entitlement de PassKit -->
         <config-file target="*-Info.plist" parent="com.apple.developer.payment-pass-provisioning">
