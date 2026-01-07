@@ -1,35 +1,41 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
+    xmlns:android="http://schemas.android.com/apk/res/android"
     id="cordova-plugin-slm-wallet-provisioning"
     version="1.0.0">
     
     <name>SLM Wallet Provisioning</name>
-    <description>Plugin para tokenización y provisioning de tarjetas en Apple Wallet y Google Pay</description>
+    <description>Plugin para tokenización y provisioning de tarjetas en Apple Wallet y Google Pay con Pomelo</description>
     <license>MIT</license>
-    <keywords>wallet,apple pay,apple wallet,tokenization,provisioning</keywords>
+    <keywords>wallet,apple pay,apple wallet,tokenization,provisioning,pomelo</keywords>
+    <repo>https://github.com/sergioguerrero-ux/cordova-plugin-slm-wallet-provisioning.git</repo>
+    <issue>https://github.com/sergioguerrero-ux/cordova-plugin-slm-wallet-provisioning/issues</issue>
     
+    <!-- JavaScript Interface -->
     <js-module src="www/SLMWalletProvisioning.js" name="SLMWalletProvisioning">
         <clobbers target="SLMWalletProvisioning" />
     </js-module>
     
-    <!-- Configuración iOS -->
+    <!-- iOS Platform -->
     <platform name="ios">
+        <!-- Preference para Swift Version -->
         <preference name="SWIFTVERSION" default="5.0" />
         
+        <!-- Registrar el plugin -->
         <config-file target="config.xml" parent="/*">
             <feature name="SLMWalletProvisioning">
                 <param name="ios-package" value="SLMWalletProvisioning"/>
             </feature>
         </config-file>
         
-        <!-- Archivos del plugin -->
+        <!-- Archivo Swift del plugin -->
         <source-file src="src/ios/SLMWalletProvisioning.swift" />
         
-        <!-- Frameworks necesarios -->
+        <!-- Frameworks requeridos -->
         <framework src="PassKit.framework" />
         <framework src="WatchConnectivity.framework" weak="true" />
         
-        <!-- Capabilities requeridas -->
+        <!-- Entitlements para Apple Wallet -->
         <config-file target="*-Debug.plist" parent="com.apple.developer.pass-type-identifiers">
             <array>
                 <string>$(TeamIdentifierPrefix)*</string>
@@ -42,7 +48,6 @@
             </array>
         </config-file>
         
-        <!-- Entitlements para Apple Wallet -->
         <config-file target="*-Debug.plist" parent="com.apple.developer.payment-pass-provisioning">
             <true/>
         </config-file>
@@ -50,6 +55,22 @@
         <config-file target="*-Release.plist" parent="com.apple.developer.payment-pass-provisioning">
             <true/>
         </config-file>
+        
+        <!-- Añadir capabilities al proyecto -->
+        <config-file target="*.entitlements" parent="com.apple.developer.pass-type-identifiers">
+            <array>
+                <string>$(TeamIdentifierPrefix)*</string>
+            </array>
+        </config-file>
+        
+        <config-file target="*.entitlements" parent="com.apple.developer.payment-pass-provisioning">
+            <true/>
+        </config-file>
+    </platform>
+    
+    <!-- Android Platform (para el futuro) -->
+    <platform name="android">
+        <!-- Aquí irá la implementación de Android -->
     </platform>
     
 </plugin>

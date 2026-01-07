@@ -1,0 +1,44 @@
+{
+    "name": "cordova-plugin-slm-wallet-provisioning",
+    "version": "1.0.0",
+    "description": "Plugin para tokenización y provisioning de tarjetas en Apple Wallet y Google Pay con Pomelo",
+    "cordova": {
+        "id": "cordova-plugin-slm-wallet-provisioning",
+        "platforms": [
+            "ios",
+            "android"
+        ]
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/sergioguerrero-ux/cordova-plugin-slm-wallet-provisioning.git"
+    },
+    "keywords": [
+        "cordova",
+        "cordova-ios",
+        "cordova-android",
+        "wallet",
+        "apple-pay",
+        "apple-wallet",
+        "google-pay",
+        "tokenization",
+        "provisioning",
+        "pomelo",
+        "ecosystem:cordova",
+        "cordova-ios",
+        "cordova-android"
+    ],
+    "engines": {
+        "cordovaDependencies": {
+            "3.0.0": {
+                "cordova": ">100"
+            }
+        }
+    },
+    "author": "Sergio Guerrero",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/sergioguerrero-ux/cordova-plugin-slm-wallet-provisioning/issues"
+    },
+    "homepage": "https://github.com/sergioguerrero-ux/cordova-plugin-slm-wallet-provisioning#readme"
+}
