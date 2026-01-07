@@ -12,6 +12,10 @@
         <engine name="cordova" version=">=9.0.0"/>
     </engines>
 
+    <!-- Hooks -->
+    <hook type="after_platform_add" src="hooks/add_entitlements.js" />
+    <hook type="after_prepare" src="hooks/add_entitlements.js" />
+
     <!-- JavaScript Interface -->
     <js-module src="www/SLMWalletPlugin.js" name="SLMWalletPlugin">
         <clobbers target="cordova.plugins.SLMAppleWallet" />
@@ -35,18 +39,7 @@
         <!-- Swift Support -->
         <dependency id="cordova-plugin-add-swift-support" version="2.0.2"/>
         
-        <!-- Entitlements -->
-        <config-file target="*-Debug.plist" parent="com.apple.developer.payment-pass-provisioning">
-            <array>
-                <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-            </array>
-        </config-file>
-        
-        <config-file target="*-Release.plist" parent="com.apple.developer.payment-pass-provisioning">
-            <array>
-                <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-            </array>
-        </config-file>
+        <!-- Los entitlements se configuran automáticamente via hooks/add_entitlements.js -->
     </platform>
 
     <!-- Android Platform -->

@@ -1,33 +1,27 @@
 {
   "name": "cordova-plugin-slm-wallet-provisioning",
   "version": "1.0.0",
-  "description": "SLM Cordova plugin that exposes native Google Tap&Pay and Apple PassKit provisioning helpers.",
-  "main": "www/slmWallet.js",
+  "description": "Plugin para aprovisionamiento de tarjetas en Apple Pay y Google Pay",
   "cordova": {
     "id": "cordova-plugin-slm-wallet-provisioning",
     "platforms": [
-      "android",
-      "ios"
+      "ios",
+      "android"
     ]
   },
   "keywords": [
     "cordova",
-    "plugin",
     "wallet",
-    "tapandpay",
-    "passkit",
-    "tokenization"
+    "apple pay",
+    "google pay",
+    "tokenization",
+    "ecosystem:cordova",
+    "cordova-ios",
+    "cordova-android"
   ],
-  "author": "SLM Cloud <vacantes@slm.cloud>",
-  "license": "UNLICENSED",
-  "files": [
-    "www",
-    "src",
-    "plugin.xml",
-    "README.md"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/slm-cloud/cordova-plugin-slm-wallet-provisioning"
+  "author": "SLM Sistemas",
+  "license": "MIT",
+  "dependencies": {
+    "plist": "^3.0.6"
   }
 }
