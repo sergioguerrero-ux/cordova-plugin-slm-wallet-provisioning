@@ -4,6 +4,7 @@ import PassKit
 @objc(SLMWalletPlugin) class SLMWalletPlugin : CDVPlugin, PKAddPaymentPassViewControllerDelegate {
     
     private var currentCallbackId: String?
+    private var completionHandlerForGenerate: ((PKAddPaymentPassRequest) -> Void)?
     private var addPaymentPassVC: PKAddPaymentPassViewController?
     
     // MARK: - Cordova JavaScript Bridge Helper
@@ -20,11 +21,10 @@ import PassKit
     
     // MARK: - Cordova Plugin Methods
     
-    @objc(appleCanAdd:)
-    func appleCanAdd(_ command: CDVInvokedUrlCommand) {
+    @objc(canAddPaymentPass:)
+    func canAddPaymentPass(_ command: CDVInvokedUrlCommand) {
         var pluginResult: CDVPluginResult
         
-        // Verificar que el dispositivo sea compatible con Apple Pay
         guard PKAddPaymentPassViewController.canAddPaymentPass() else {
             pluginResult = CDVPluginResult(status: CDVCommandStatus_OK, messageAs: ["canAdd": false])
             self.commandDelegate.send(pluginResult, callbackId: command.callbackId)
@@ -35,15 +35,15 @@ import PassKit
         self.commandDelegate.send(pluginResult, callbackId: command.callbackId)
     }
     
-    @objc(appleStartAdd:)
-    func appleStartAdd(_ command: CDVInvokedUrlCommand) {
+    // FASE 1: Iniciar el flujo y devolver los datos de Apple
+    @objc(startAddPaymentPass:)
+    func startAddPaymentPass(_ command: CDVInvokedUrlCommand) {
         guard let opts = command.arguments.first as? [String: Any] else {
             let result = CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: "Invalid parameters")
             self.commandDelegate.send(result, callbackId: command.callbackId)
             return
         }
         
-        // Verificar compatibilidad del dispositivo
         guard PKAddPaymentPassViewController.canAddPaymentPass() else {
             let result = CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: "Device does not support adding payment passes")
             self.commandDelegate.send(result, callbackId: command.callbackId)
@@ -52,39 +52,20 @@ import PassKit
         
         self.currentCallbackId = command.callbackId
         
-        // Extraer parámetros de configuración
-        let cardholderName = opts["cardholderName"] as? String ?? ""
+        // Extraer parámetros
+        let cardholderName = opts["holderName"] as? String ?? opts["cardholderName"] as? String ?? ""
         let last4 = opts["last4"] as? String ?? ""
-        let description = opts["description"] as? String ?? "Card"
+        let description = opts["localizedDescription"] as? String ?? opts["description"] as? String ?? "Card"
         let cardId = opts["cardId"] as? String ?? opts["card_id"] as? String ?? ""
-        
-        // Configuración del endpoint de tokenización
-        let tokenizationEndpoint = opts["tokenizationEndpoint"] as? String 
-            ?? "https://api.pomelo.la/token-provisioning/mastercard/apple-pay"
-        
-        var tokenizationAuthorization = opts["tokenizationAuthorization"] as? String ?? ""
-        
-        // Si no hay tokenizationAuthorization, intentar construirlo desde authToken y authScheme
-        if tokenizationAuthorization.isEmpty {
-            let authToken = opts["tokenizationAuthToken"] as? String ?? ""
-            let authScheme = opts["tokenizationAuthScheme"] as? String ?? "Bearer"
-            if !authToken.isEmpty {
-                tokenizationAuthorization = "\(authScheme) \(authToken)"
-            }
-        }
-        
-        let tokenizationHeaders = opts["tokenizationHeaders"] as? [String: String] ?? [:]
-        let userId = opts["userId"] as? String ?? opts["user_id"] as? String ?? ""
-        
-        // Guardar configuración para uso posterior
-        UserDefaults.standard.set(tokenizationEndpoint, forKey: "SLMWallet_tokenizationEndpoint")
-        UserDefaults.standard.set(tokenizationAuthorization, forKey: "SLMWallet_tokenizationAuthorization")
-        UserDefaults.standard.set(tokenizationHeaders, forKey: "SLMWallet_tokenizationHeaders")
-        UserDefaults.standard.set(cardId, forKey: "SLMWallet_cardId")
-        UserDefaults.standard.set(userId, forKey: "SLMWallet_userId")
+        let encryptionScheme = opts["encryptionScheme"] as? String ?? "ECC_V2"
         
         // Configurar PKAddPaymentPassRequestConfiguration
-        guard let configuration = PKAddPaymentPassRequestConfiguration(encryptionScheme: .ECC_V2) else {
+        var scheme: PKEncryptionScheme = .ECC_V2
+        if encryptionScheme == "RSA_V2" {
+            scheme = .RSA_V2
+        }
+        
+        guard let configuration = PKAddPaymentPassRequestConfiguration(encryptionScheme: scheme) else {
             let result = CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: "Failed to create payment pass configuration")
             self.commandDelegate.send(result, callbackId: command.callbackId)
             self.currentCallbackId = nil
@@ -96,7 +77,12 @@ import PassKit
         configuration.localizedDescription = description
         configuration.primaryAccountIdentifier = cardId
         
-        // Crear y presentar el view controller de Apple Pay
+        // Configurar primaryAccountNumberSuffix si existe
+        if let pan4 = opts["primaryAccountNumberSuffix"] as? String, !pan4.isEmpty {
+            configuration.primaryAccountSuffix = pan4
+        }
+        
+        // Crear y presentar el view controller
         guard let vc = PKAddPaymentPassViewController(requestConfiguration: configuration, delegate: self) else {
             let result = CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: "Failed to create PKAddPaymentPassViewController")
             self.commandDelegate.send(result, callbackId: command.callbackId)
@@ -111,6 +97,56 @@ import PassKit
         }
     }
     
+    // FASE 2: Completar el aprovisionamiento con los datos de Pomelo
+    @objc(completeAddPaymentPass:)
+    func completeAddPaymentPass(_ command: CDVInvokedUrlCommand) {
+        guard let opts = command.arguments.first as? [String: Any] else {
+            let result = CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: "Invalid parameters")
+            self.commandDelegate.send(result, callbackId: command.callbackId)
+            return
+        }
+        
+        guard let handler = self.completionHandlerForGenerate else {
+            let result = CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: "No completion handler available. Did you call startAddPaymentPass first?")
+            self.commandDelegate.send(result, callbackId: command.callbackId)
+            return
+        }
+        
+        // Extraer datos de Pomelo (deben venir en Base64)
+        guard let activationDataBase64 = opts["activationData"] as? String ?? opts["activation_data"] as? String,
+              let encryptedPassDataBase64 = opts["encryptedPassData"] as? String ?? opts["encrypted_pass_data"] as? String,
+              let ephemeralPublicKeyBase64 = opts["ephemeralPublicKey"] as? String ?? opts["ephemeral_public_key"] as? String else {
+            let result = CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: "Missing required Pomelo data: activationData, encryptedPassData, or ephemeralPublicKey")
+            self.commandDelegate.send(result, callbackId: command.callbackId)
+            return
+        }
+        
+        // Decodificar de Base64
+        guard let activationData = Data(base64Encoded: activationDataBase64),
+              let encryptedPassData = Data(base64Encoded: encryptedPassDataBase64),
+              let ephemeralPublicKey = Data(base64Encoded: ephemeralPublicKeyBase64) else {
+            let result = CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: "Failed to decode base64 data from Pomelo")
+            self.commandDelegate.send(result, callbackId: command.callbackId)
+            return
+        }
+        
+        // Construir PKAddPaymentPassRequest
+        let passRequest = PKAddPaymentPassRequest()
+        passRequest.activationData = activationData
+        passRequest.encryptedPassData = encryptedPassData
+        passRequest.ephemeralPublicKey = ephemeralPublicKey
+        
+        // Llamar al completion handler de Apple
+        handler(passRequest)
+        
+        // Limpiar el handler
+        self.completionHandlerForGenerate = nil
+        
+        // Enviar respuesta de éxito
+        let result = CDVPluginResult(status: CDVCommandStatus_OK, messageAs: ["ok": true, "message": "Provisioning data sent to Apple"])
+        self.commandDelegate.send(result, callbackId: command.callbackId)
+    }
+    
     // MARK: - PKAddPaymentPassViewControllerDelegate
     
     func addPaymentPassViewController(
@@ -120,104 +156,31 @@ import PassKit
         nonceSignature: Data,
         completionHandler handler: @escaping (PKAddPaymentPassRequest) -> Void
     ) {
-        // Recuperar configuración guardada
-        guard let endpoint = UserDefaults.standard.string(forKey: "SLMWallet_tokenizationEndpoint"),
-              let authorization = UserDefaults.standard.string(forKey: "SLMWallet_tokenizationAuthorization"),
-              let cardId = UserDefaults.standard.string(forKey: "SLMWallet_cardId") else {
-            print("Missing tokenization configuration")
+        // Guardar el completion handler para usarlo después
+        self.completionHandlerForGenerate = handler
+        
+        guard let callbackId = self.currentCallbackId else {
+            print("No callback ID available")
             return
         }
         
-        let headers = UserDefaults.standard.dictionary(forKey: "SLMWallet_tokenizationHeaders") as? [String: String] ?? [:]
-        let userId = UserDefaults.standard.string(forKey: "SLMWallet_userId") ?? ""
-        
-        // Convertir certificates, nonce y nonceSignature a Base64
+        // Convertir a Base64
         let certificatesBase64 = certificates.map { $0.base64EncodedString() }
         let nonceBase64 = nonce.base64EncodedString()
         let nonceSignatureBase64 = nonceSignature.base64EncodedString()
         
-        // Construir el request body para Pomelo
-        var requestBody: [String: Any] = [
-            "card_id": cardId,
+        // Devolver los datos a JavaScript para que haga la llamada a Pomelo
+        let responseData: [String: Any] = [
+            "ok": true,
             "certificates": certificatesBase64,
             "nonce": nonceBase64,
-            "nonce_signature": nonceSignatureBase64
+            "nonceSignature": nonceSignatureBase64,
+            "certificatesCount": certificates.count
         ]
         
-        if !userId.isEmpty {
-            requestBody["user_id"] = userId
-        }
-        
-        // Llamar al endpoint de Pomelo
-        guard let url = URL(string: endpoint) else {
-            print("Invalid endpoint URL")
-            return
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(authorization, forHTTPHeaderField: "Authorization")
-        
-        // Agregar headers personalizados
-        for (key, value) in headers {
-            request.setValue(value, forHTTPHeaderField: key)
-        }
-        
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-        } catch {
-            print("Failed to serialize request body: \(error)")
-            return
-        }
-        
-        // Realizar la llamada al backend
-        let task = URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error {
-                print("Network error: \(error)")
-                return
-            }
-            
-            guard let data = data else {
-                print("No data received from server")
-                return
-            }
-            
-            do {
-                guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let dataObject = json["data"] as? [String: Any],
-                      let activationDataBase64 = dataObject["activation_data"] as? String,
-                      let encryptedPassDataBase64 = dataObject["encrypted_pass_data"] as? String,
-                      let ephemeralPublicKeyBase64 = dataObject["ephemeral_public_key"] as? String else {
-                    print("Invalid response structure from Pomelo")
-                    return
-                }
-                
-                // Decodificar de Base64
-                guard let activationData = Data(base64Encoded: activationDataBase64),
-                      let encryptedPassData = Data(base64Encoded: encryptedPassDataBase64),
-                      let ephemeralPublicKey = Data(base64Encoded: ephemeralPublicKeyBase64) else {
-                    print("Failed to decode base64 data")
-                    return
-                }
-                
-                // Construir PKAddPaymentPassRequest
-                let passRequest = PKAddPaymentPassRequest()
-                passRequest.activationData = activationData
-                passRequest.encryptedPassData = encryptedPassData
-                passRequest.ephemeralPublicKey = ephemeralPublicKey
-                
-                // Llamar al completion handler con el request
-                DispatchQueue.main.async {
-                    handler(passRequest)
-                }
-                
-            } catch {
-                print("Failed to parse response: \(error)")
-            }
-        }
-        
-        task.resume()
+        let result = CDVPluginResult(status: CDVCommandStatus_OK, messageAs: responseData)
+        result?.keepCallback = true // Importante: mantener el callback activo
+        self.commandDelegate.send(result, callbackId: callbackId)
     }
     
     func addPaymentPassViewController(
@@ -231,13 +194,11 @@ import PassKit
             var result: CDVPluginResult
             
             if let error = error {
-                // Error al agregar la tarjeta
                 result = CDVPluginResult(
                     status: CDVCommandStatus_ERROR,
                     messageAs: ["error": error.localizedDescription, "added": false]
                 )
             } else if let pass = pass {
-                // Tarjeta agregada exitosamente
                 let passInfo: [String: Any] = [
                     "added": true,
                     "serialNumber": pass.serialNumber,
@@ -246,8 +207,14 @@ import PassKit
                     "deviceAccountNumberSuffix": pass.deviceAccountNumberSuffix
                 ]
                 result = CDVPluginResult(status: CDVCommandStatus_OK, messageAs: passInfo)
+                
+                // Disparar evento personalizado
+                self.evaluateJS("""
+                    window.dispatchEvent(new CustomEvent('slm.appleWallet.finished', {
+                        detail: \(self.jsonString(from: passInfo))
+                    }));
+                """)
             } else {
-                // Cancelado por el usuario
                 result = CDVPluginResult(
                     status: CDVCommandStatus_ERROR,
                     messageAs: ["error": "User cancelled", "added": false]
@@ -257,13 +224,17 @@ import PassKit
             self.commandDelegate.send(result, callbackId: callbackId)
             self.currentCallbackId = nil
             self.addPaymentPassVC = nil
-            
-            // Limpiar UserDefaults
-            UserDefaults.standard.removeObject(forKey: "SLMWallet_tokenizationEndpoint")
-            UserDefaults.standard.removeObject(forKey: "SLMWallet_tokenizationAuthorization")
-            UserDefaults.standard.removeObject(forKey: "SLMWallet_tokenizationHeaders")
-            UserDefaults.standard.removeObject(forKey: "SLMWallet_cardId")
-            UserDefaults.standard.removeObject(forKey: "SLMWallet_userId")
+            self.completionHandlerForGenerate = nil
         }
+    }
+    
+    // MARK: - Helper
+    
+    private func jsonString(from dictionary: [String: Any]) -> String {
+        guard let data = try? JSONSerialization.data(withJSONObject: dictionary),
+              let string = String(data: data, encoding: .utf8) else {
+            return "{}"
+        }
+        return string
     }
 }
