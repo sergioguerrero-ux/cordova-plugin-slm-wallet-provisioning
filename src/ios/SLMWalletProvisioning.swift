@@ -256,14 +256,24 @@ class SLMWalletProvisioning: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
     }
     
     private func getTopViewController() -> UIViewController? {
-        guard let windowScene = UIApplication.shared.connectedScenes
-            .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene,
-              let window = windowScene.windows.first(where: { $0.isKeyWindow }),
-              var topController = window.rootViewController else {
-            return nil
+        // Método compatible con iOS 11+
+        var topController = UIApplication.shared.keyWindow?.rootViewController
+        
+        // Si no hay keyWindow, buscar en todas las windows
+        if topController == nil {
+            for window in UIApplication.shared.windows where window.isKeyWindow {
+                topController = window.rootViewController
+                break
+            }
         }
         
-        while let presentedViewController = topController.presentedViewController {
+        // Si aún no hay, tomar la primera window
+        if topController == nil {
+            topController = UIApplication.shared.windows.first?.rootViewController
+        }
+        
+        // Subir por la jerarquía hasta encontrar el top-most
+        while let presentedViewController = topController?.presentedViewController {
             topController = presentedViewController
         }
         
