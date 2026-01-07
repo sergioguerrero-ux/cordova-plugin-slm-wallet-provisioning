@@ -326,47 +326,90 @@ class SLMWalletProvisioning: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
     // MARK: - Generate Request Delegate
     
     func addPaymentPassViewController(
-        _ controller: PKAddPaymentPassViewController,
-        generateRequestWithCertificateChain certificates: [Data],
-        nonce: Data,
-        nonceSignature: Data,
-        completionHandler handler: @escaping (PKAddPaymentPassRequest) -> Void
-    ) {
-        logToJS("📱 Apple solicitó datos!", type: "info")
-        
-        self.pendingCompletionHandler = handler
-        
-        guard let cardId = UserDefaults.standard.string(forKey: "currentCardIdProvisioning") else {
-            logToJS("❌ cardId no encontrado", type: "error")
-            return
-        }
-        
-        let certificatesBase64 = certificates.map { $0.base64EncodedString() }
-        let nonceBase64 = nonce.base64EncodedString()
-        let nonceSignatureBase64 = nonceSignature.base64EncodedString()
-        
-        logToJS("📦 Datos: \(certificates.count) certs")
-        
-        let provisioningData: [String: Any] = [
-            "cardId": cardId,
-            "certificates": certificatesBase64,
-            "nonce": nonceBase64,
-            "nonceSignature": nonceSignatureBase64
-        ]
-        
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: provisioningData),
-              let jsonString = String(data: jsonData, encoding: .utf8) else {
-            logToJS("❌ Error JSON", type: "error")
-            return
-        }
-        
-        let jsCode = """
-        cordova.fireDocumentEvent('onApplePayProvisioningRequest', \(jsonString));
-        """
-        
-        self.commandDelegate.evalJs(jsCode)
-        logToJS("✅ Evento enviado", type: "success")
+    _ controller: PKAddPaymentPassViewController,
+    didFinishAdding pass: PKPaymentPass?,
+    error: Error?
+) {
+    logToJS("🏁 Apple Wallet finalizó", type: "info")
+    logToJS("   pass: \(pass != nil ? "existe" : "nil")")
+    logToJS("   error: \(error != nil ? error!.localizedDescription : "nil")")
+    
+    // Log del NSError para ver el código exacto
+    if let nsError = error as NSError? {
+        logToJS("   error.domain: \(nsError.domain)")
+        logToJS("   error.code: \(nsError.code)")
+        logToJS("   error.userInfo: \(nsError.userInfo)")
     }
+    
+    let presentingVC = controller.presentingViewController
+    logToJS("   presentingVC: \(presentingVC != nil ? String(describing: type(of: presentingVC!)) : "nil")")
+    
+    logToJS("   → Iniciando dismiss...", type: "info")
+    
+    controller.dismiss(animated: true) { [weak self] in
+        self?.logToJS("   ✅ Dismiss animation completado", type: "success")
+        
+        // Verificación inmediata
+        if let presenting = presentingVC {
+            self?.logToJS("   → Verificando InAppBrowser...", type: "info")
+            self?.logToJS("      Tipo: \(type(of: presenting))")
+            self?.logToJS("      isViewLoaded: \(presenting.isViewLoaded)")
+            self?.logToJS("      view.window: \(presenting.view.window != nil ? "existe" : "nil")")
+            self?.logToJS("      view.superview: \(presenting.view.superview != nil ? "existe" : "nil")")
+            
+            if presenting.view.window != nil {
+                self?.logToJS("   ✅ InAppBrowser CONFIRMADO visible", type: "success")
+            } else {
+                self?.logToJS("   ❌ InAppBrowser perdió window!", type: "error")
+            }
+        } else {
+            self?.logToJS("   ❌ presentingVC es nil", type: "error")
+        }
+        
+        // Limpiar
+        UserDefaults.standard.removeObject(forKey: "currentCardIdProvisioning")
+        self?.logToJS("   Datos limpiados")
+        
+        // Preparar resultado
+        var resultMessage = ""
+        
+        if let error = error {
+            resultMessage = "Provisioning failed: \(error.localizedDescription)"
+            self?.logToJS("   📤 ANTES de sendError: \(resultMessage)", type: "error")
+            self?.sendError(resultMessage)
+            self?.logToJS("   📤 DESPUÉS de sendError", type: "error")
+            
+            // Verificar de nuevo después de sendError
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                if let presenting = presentingVC {
+                    if presenting.view.window != nil {
+                        self?.logToJS("   ✅ 0.3s después de sendError: InAppBrowser SIGUE visible", type: "success")
+                    } else {
+                        self?.logToJS("   ❌ 0.3s después de sendError: InAppBrowser DESAPARECIÓ", type: "error")
+                        self?.logToJS("   ⚠️ Algo en JavaScript cerró el InAppBrowser!", type: "error")
+                    }
+                }
+            }
+            
+        } else if let pass = pass {
+            resultMessage = "Card added successfully"
+            self?.logToJS("   📤 Enviando SUCCESS", type: "success")
+            self?.sendSuccess([
+                "success": true,
+                "message": resultMessage,
+                "passTypeIdentifier": pass.passTypeIdentifier,
+                "serialNumber": pass.serialNumber,
+                "primaryAccountSuffix": pass.primaryAccountNumberSuffix
+            ])
+        } else {
+            resultMessage = "User cancelled"
+            self?.logToJS("   📤 Enviando CANCEL", type: "warning")
+            self?.sendError(resultMessage)
+        }
+        
+        self?.logToJS("✅ didFinishAdding COMPLETADO", type: "success")
+    }
+}
     
     // MARK: - Complete Provisioning
     
