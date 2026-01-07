@@ -10,11 +10,11 @@
     
     <repo>https://github.com/sergioguerrero-ux/cordova-plugin-slm-wallet-provisioning.git</repo>
     
-    <!-- ⭐ IMPORTANTE: Variable con valor por defecto ⭐ -->
+    <!-- ⭐ Variable con valor por defecto ⭐ -->
     <preference name="SWIFTVERSION" default="5.0" />
     
     <!-- JavaScript Interface -->
-    <js-module src="www/slmWallet.js" name="slmWallet">
+    <js-module src="www/slmWallet.js" name="SLMWallet">
         <clobbers target="cordova.plugins.slmWallet" />
     </js-module>
     
@@ -23,7 +23,7 @@
         
         <!-- Registrar el plugin -->
         <config-file target="config.xml" parent="/*">
-            <feature name="slmWallet">
+            <feature name="SLMWallet">
                 <param name="ios-package" value="SLMWalletPlugin" />
             </feature>
         </config-file>
@@ -38,6 +38,7 @@
         
         <!-- Archivos del plugin -->
         <source-file src="src/ios/SLMWalletPlugin.swift" />
+        
         <!-- Frameworks -->
         <framework src="PassKit.framework" />
         
@@ -48,14 +49,14 @@
         
         <!-- Registrar el plugin -->
         <config-file target="config.xml" parent="/*">
-            <feature name="slmWallet">
-                <param name="android-package" value="com.slm.wallet.SLMWalletPlugin" />
+            <feature name="SLMWallet">
+                <param name="android-package" value="com.slm.plugins.wallet.SLMWalletPlugin" />
             </feature>
         </config-file>
         
         <!-- Archivos del plugin -->
         <source-file src="src/android/SLMWalletPlugin.java" 
-                     target-dir="src/com/slm/wallet" />
+                     target-dir="src/com/slm/plugins/wallet" />
         
         <!-- Frameworks -->
         <framework src="com.google.android.gms:play-services-wallet:19.1.0" />
