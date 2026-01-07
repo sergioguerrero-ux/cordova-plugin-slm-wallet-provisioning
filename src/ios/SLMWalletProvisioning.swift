@@ -109,21 +109,22 @@ class SLMWalletProvisioning: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
             requestConfiguration: configuration,
             delegate: self
         ) else {
-            self.sendError("Cannot create Apple Pay view controller. Missing entitlements or capabilities.")
+            self.sendError("Cannot create Apple Pay view controller")
             return
         }
         
         self.addPaymentPassVC = addPaymentPassVC
         UserDefaults.standard.set(cardId, forKey: "currentCardIdProvisioning")
         
-        guard let viewController = self.viewController else {
-            self.sendError("No view controller available")
-            return
-        }
-        
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            viewController.present(addPaymentPassVC, animated: true, completion: nil)
+            
+            guard let topViewController = self.getTopViewController() else {
+                self.sendError("No view controller available")
+                return
+            }
+            
+            topViewController.present(addPaymentPassVC, animated: true, completion: nil)
         }
     }
     
@@ -252,6 +253,21 @@ class SLMWalletProvisioning: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
         default:
             return .masterCard
         }
+    }
+    
+    private func getTopViewController() -> UIViewController? {
+        guard let windowScene = UIApplication.shared.connectedScenes
+            .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene,
+              let window = windowScene.windows.first(where: { $0.isKeyWindow }),
+              var topController = window.rootViewController else {
+            return nil
+        }
+        
+        while let presentedViewController = topController.presentedViewController {
+            topController = presentedViewController
+        }
+        
+        return topController
     }
     
     private func sendSuccess(_ data: [String: Any]) {
