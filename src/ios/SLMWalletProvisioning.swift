@@ -8,23 +8,19 @@ class SLMWalletProvisioning: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
     private var addPaymentPassVC: PKAddPaymentPassViewController?
     private var pendingCompletionHandler: ((PKAddPaymentPassRequest) -> Void)?
     
-    // ✅ VERSIÓN MEJORADA: No bloquea, usa async, con fallback
+    // ✅ Log a JavaScript sin bloquear
     private func logToJS(_ message: String, type: String = "info") {
-        // Siempre print primero (por si acaso)
         print("[SWIFT] \(message)")
         
-        // Escapar comillas y caracteres especiales
         let escapedMessage = message
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "'", with: "\\'")
             .replacingOccurrences(of: "\n", with: "\\n")
             .replacingOccurrences(of: "\r", with: "\\r")
         
-        // Ejecutar en background para no bloquear
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             
-            // Intentar enviar a JS pero sin bloquear si falla
             let jsCode = """
             (function() {
                 try {
@@ -49,7 +45,6 @@ class SLMWalletProvisioning: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
     func canAddCard(command: CDVInvokedUrlCommand) {
         logToJS("🔍 canAddCard iniciado")
         
-        // Ejecutar en background thread
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else {
                 self?.logToJS("❌ self is nil", type: "error")
@@ -80,7 +75,6 @@ class SLMWalletProvisioning: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
             
             self.logToJS("   → Paso 5: Enviando resultado", type: "success")
             
-            // Volver al main thread para enviar el callback
             DispatchQueue.main.async {
                 let pluginResult = CDVPluginResult(status: CDVCommandStatus_OK, messageAs: result)
                 self.commandDelegate.send(pluginResult, callbackId: command.callbackId)
@@ -209,119 +203,150 @@ class SLMWalletProvisioning: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
         self.addPaymentPassVC = addPaymentPassVC
         UserDefaults.standard.set(cardId, forKey: "currentCardIdProvisioning")
         
-        logToJS("   → Buscando view controller para presentar...")
-
+        // ✅ BUSCAR INAPPBROWSER ESPECÍFICAMENTE
+        logToJS("   → Buscando InAppBrowser específicamente...")
+        
         DispatchQueue.main.async { [weak self] in
             guard let self = self else {
-                self?.logToJS("❌ self is nil en main queue", type: "error")
+                self?.logToJS("❌ self is nil", type: "error")
                 return
             }
             
-            self.logToJS("   → En main thread, iniciando búsqueda...", type: "info")
+            var inAppBrowserVC: UIViewController?
             
-            var topController: UIViewController?
-            var methodUsed = ""
-            
-            // Método 1: self.viewController
-            if let cordovaVC = self.viewController {
-                self.logToJS("   ✅ Método 1: self.viewController encontrado", type: "success")
-                self.logToJS("      Tipo: \(type(of: cordovaVC))", type: "info")
-                topController = cordovaVC
-                methodUsed = "self.viewController"
-            } else {
-                self.logToJS("   ⚠️ Método 1: self.viewController es nil", type: "warning")
-            }
-            
-            // Método 2: keyWindow
-            if topController == nil {
-                self.logToJS("   → Intentando Método 2: keyWindow...", type: "info")
-                if let keyWindow = UIApplication.shared.keyWindow {
-                    self.logToJS("      keyWindow existe", type: "info")
-                    if let rootVC = keyWindow.rootViewController {
-                        self.logToJS("   ✅ Método 2: rootViewController encontrado", type: "success")
-                        self.logToJS("      Tipo: \(type(of: rootVC))", type: "info")
-                        topController = rootVC
-                        methodUsed = "keyWindow.rootViewController"
-                    } else {
-                        self.logToJS("      rootViewController es nil", type: "warning")
-                    }
-                } else {
-                    self.logToJS("      keyWindow es nil", type: "warning")
-                }
-            }
-            
-            // Método 3: Buscar en windows
-            if topController == nil {
-                self.logToJS("   → Intentando Método 3: windows array...", type: "info")
-                let windows = UIApplication.shared.windows
-                self.logToJS("      Total windows: \(windows.count)", type: "info")
+            // Función recursiva para buscar InAppBrowser
+            func findInAppBrowser(in vc: UIViewController?) -> UIViewController? {
+                guard let vc = vc else { return nil }
                 
-                for (index, window) in windows.enumerated() {
+                let vcType = String(describing: type(of: vc))
+                self.logToJS("      Chequeando: \(vcType)", type: "info")
+                
+                // Si es el InAppBrowser, lo encontramos
+                if vcType.contains("InAppBrowser") || vcType.contains("IAB") {
+                    self.logToJS("      ✅ ENCONTRADO: \(vcType)", type: "success")
+                    return vc
+                }
+                
+                // Buscar en presented view controller
+                if let presented = vc.presentedViewController {
+                    if let found = findInAppBrowser(in: presented) {
+                        return found
+                    }
+                }
+                
+                // Buscar en child view controllers
+                for child in vc.children {
+                    if let found = findInAppBrowser(in: child) {
+                        return found
+                    }
+                }
+                
+                return nil
+            }
+            
+            // ESTRATEGIA 1: Buscar desde self.viewController
+            self.logToJS("   → Estrategia 1: Buscando desde self.viewController...", type: "info")
+            if let cordovaVC = self.viewController {
+                self.logToJS("      Base: \(type(of: cordovaVC))", type: "info")
+                inAppBrowserVC = findInAppBrowser(in: cordovaVC)
+            } else {
+                self.logToJS("      self.viewController es nil", type: "warning")
+            }
+            
+            // ESTRATEGIA 2: Buscar en todas las windows
+            if inAppBrowserVC == nil {
+                self.logToJS("   → Estrategia 2: Buscando en windows...", type: "info")
+                
+                for (index, window) in UIApplication.shared.windows.enumerated() {
                     self.logToJS("      Window \(index): \(type(of: window))", type: "info")
                     if let rootVC = window.rootViewController {
-                        self.logToJS("   ✅ Método 3: rootViewController encontrado en window \(index)", type: "success")
-                        self.logToJS("      Tipo: \(type(of: rootVC))", type: "info")
-                        topController = rootVC
-                        methodUsed = "windows[\(index)].rootViewController"
-                        break
+                        if let found = findInAppBrowser(in: rootVC) {
+                            inAppBrowserVC = found
+                            self.logToJS("      ✅ Encontrado en window \(index)", type: "success")
+                            break
+                        }
                     }
                 }
             }
             
-            guard var presentingController = topController else {
-                self.logToJS("❌ No se encontró view controller en ningún método", type: "error")
+            // ESTRATEGIA 3: Si no encontramos InAppBrowser, usar top-most
+            if inAppBrowserVC == nil {
+                self.logToJS("   ⚠️ InAppBrowser no encontrado, usando top-most...", type: "warning")
+                
+                var topVC = self.viewController ?? UIApplication.shared.keyWindow?.rootViewController
+                
+                if let vc = topVC {
+                    var current = vc
+                    var levels = 0
+                    while let presented = current.presentedViewController {
+                        levels += 1
+                        current = presented
+                    }
+                    inAppBrowserVC = current
+                    self.logToJS("      Usando: \(type(of: current)) (subió \(levels) niveles)", type: "info")
+                }
+            }
+            
+            guard let presentingVC = inAppBrowserVC else {
+                self.logToJS("❌ No se encontró view controller", type: "error")
                 self.sendError("No view controller available")
                 return
             }
             
-            self.logToJS("   ✅ View controller base: \(type(of: presentingController)) via \(methodUsed)")
+            self.logToJS("✅ View controller seleccionado: \(type(of: presentingVC))", type: "success")
+            self.logToJS("   isViewLoaded: \(presentingVC.isViewLoaded)")
+            self.logToJS("   view.window: \(presentingVC.view.window != nil ? "existe" : "nil")")
+            self.logToJS("   isBeingPresented: \(presentingVC.isBeingPresented)")
+            self.logToJS("   isBeingDismissed: \(presentingVC.isBeingDismissed)")
             
-            // Subir por la jerarquía
-            self.logToJS("   → Subiendo por jerarquía de presentedViewController...", type: "info")
-            var levels = 0
-            while let presentedVC = presentingController.presentedViewController {
-                levels += 1
-                self.logToJS("      Nivel \(levels): \(type(of: presentedVC))", type: "info")
-                presentingController = presentedVC
+            // Verificar si está ocupado
+            if presentingVC.isBeingPresented || presentingVC.isBeingDismissed {
+                self.logToJS("   ⚠️ View controller ocupado, esperando 0.5s...", type: "warning")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self.attemptPresentation(from: presentingVC, vc: addPaymentPassVC)
+                }
+                return
+            }
+            
+            // Presentar inmediatamente
+            self.attemptPresentation(from: presentingVC, vc: addPaymentPassVC)
+        }
+    }
+    
+    // MARK: - Attempt Presentation
+    
+    private func attemptPresentation(from presentingVC: UIViewController, vc: PKAddPaymentPassViewController) {
+        logToJS("🎬 PRESENTANDO APPLE WALLET SOBRE INAPPBROWSER...", type: "info")
+        logToJS("   Desde: \(type(of: presentingVC))", type: "info")
+        
+        presentingVC.present(vc, animated: true) { [weak self] in
+            self?.logToJS("✅ Completion handler ejecutado", type: "success")
+        }
+        
+        // Verificar a los 0.5s
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            if let presented = presentingVC.presentedViewController {
+                self?.logToJS("✅ 0.5s: \(type(of: presented)) visible", type: "success")
                 
-                // Seguridad: no subir más de 10 niveles
-                if levels > 10 {
-                    self.logToJS("      ⚠️ Detenido en nivel 10 por seguridad", type: "warning")
-                    break
+                if presented is PKAddPaymentPassViewController {
+                    self?.logToJS("✅ ✅ ✅ CONFIRMADO: Apple Wallet visible!", type: "success")
                 }
+            } else {
+                self?.logToJS("❌ 0.5s: No hay presentedViewController", type: "error")
             }
-            
-            self.logToJS("   ✅ View controller final: \(type(of: presentingController)) (subió \(levels) niveles)")
-            
-            // Verificar estado del view controller
-            self.logToJS("   → Verificando estado del view controller...", type: "info")
-            self.logToJS("      isViewLoaded: \(presentingController.isViewLoaded)")
-            self.logToJS("      view.window: \(presentingController.view.window != nil ? "existe" : "nil")")
-            self.logToJS("      isBeingPresented: \(presentingController.isBeingPresented)")
-            self.logToJS("      isBeingDismissed: \(presentingController.isBeingDismissed)")
-            
-            // Verificar si puede presentar
-            if presentingController.isBeingPresented {
-                self.logToJS("   ⚠️ View controller está siendo presentado, esperando...", type: "warning")
-                // Esperar un momento
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    self.logToJS("   → Reintentando después de esperar...", type: "info")
-                    self.attemptPresentation(from: presentingController, vc: addPaymentPassVC)
-                }
-                return
+        }
+        
+        // Verificación final a 1.5s
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            if presentingVC.presentedViewController != nil {
+                self?.logToJS("✅ 1.5s: Apple Wallet sigue visible", type: "success")
+            } else {
+                self?.logToJS("❌ 1.5s: FALLO - No se presentó", type: "error")
+                
+                // Intentar sin animación como último recurso
+                self?.logToJS("   → Reintentando sin animación...", type: "warning")
+                presentingVC.present(vc, animated: false, completion: nil)
             }
-            
-            if presentingController.isBeingDismissed {
-                self.logToJS("   ⚠️ View controller está siendo dismissed, esperando...", type: "warning")
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    self.logToJS("   → Reintentando después de esperar...", type: "info")
-                    self.attemptPresentation(from: presentingController, vc: addPaymentPassVC)
-                }
-                return
-            }
-            
-            // Intentar presentar
-            self.attemptPresentation(from: presentingController, vc: addPaymentPassVC)
         }
     }
     
@@ -493,41 +518,4 @@ class SLMWalletProvisioning: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
         self.commandDelegate.send(result, callbackId: callbackId)
         self.commandCallback = nil
     }
-    
-    private func attemptPresentation(from presentingVC: UIViewController, vc: PKAddPaymentPassViewController) {
-    logToJS("🎬 INTENTANDO PRESENTAR APPLE WALLET UI...", type: "info")
-    logToJS("   Desde: \(type(of: presentingVC))", type: "info")
-    logToJS("   Modal: \(type(of: vc))", type: "info")
-    
-    // Intentar con diferentes estrategias
-    
-    // Estrategia 1: Presentación directa
-    logToJS("   → Estrategia 1: Presentación directa", type: "info")
-    presentingVC.present(vc, animated: true) { [weak self] in
-        self?.logToJS("✅ ✅ ✅ COMPLETION HANDLER EJECUTADO! ✅ ✅ ✅", type: "success")
-        self?.logToJS("   Apple Wallet UI debería estar visible ahora", type: "success")
-    }
-    
-    // Verificar después de un delay si realmente se presentó
-    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-        if let presented = presentingVC.presentedViewController {
-            self?.logToJS("✅ Verificación: ViewController presentado = \(type(of: presented))", type: "success")
-            
-            if presented is PKAddPaymentPassViewController {
-                self?.logToJS("✅ ✅ ✅ CONFIRMADO: Apple Wallet UI está visible!", type: "success")
-            } else {
-                self?.logToJS("⚠️ Se presentó algo, pero NO es PKAddPaymentPassViewController", type: "warning")
-            }
-        } else {
-            self?.logToJS("❌ FALLO: No hay presentedViewController después de 1 segundo", type: "error")
-            self?.logToJS("   La presentación falló silenciosamente", type: "error")
-            
-            // Intentar estrategia alternativa
-            self?.logToJS("   → Intentando Estrategia 2: Sin animación", type: "warning")
-            presentingVC.present(vc, animated: false) { [weak self] in
-                self?.logToJS("✅ Estrategia 2: Completion ejecutado (sin animación)", type: "success")
-            }
-        }
-    }
-}
 }
