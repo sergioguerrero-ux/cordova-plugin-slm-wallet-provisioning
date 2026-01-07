@@ -74,37 +74,37 @@ class SLMWalletProvisioning: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
     @objc(startProvisioning:)
     func startProvisioning(command: CDVInvokedUrlCommand) {
         self.commandCallback = command.callbackId
-        
+    
         guard let params = command.arguments[0] as? [String: Any] else {
             self.sendError("Invalid parameters")
             return
         }
-        
+    
         guard let cardId = params["cardId"] as? String,
               let cardholderName = params["cardholderName"] as? String,
               let lastFourDigits = params["lastFourDigits"] as? String else {
             self.sendError("Missing required parameters")
             return
         }
-        
+    
         let localizedDescription = params["localizedDescription"] as? String ?? "Tarjeta"
         let paymentNetwork = params["paymentNetwork"] as? String ?? "mastercard"
-        
+    
         guard PKAddPaymentPassViewController.canAddPaymentPass() else {
             self.sendError("Device cannot add payment passes")
             return
         }
-        
+    
         guard let configuration = PKAddPaymentPassRequestConfiguration(encryptionScheme: .ECC_V2) else {
             self.sendError("Failed to create configuration")
             return
         }
-        
+    
         configuration.cardholderName = cardholderName
         configuration.primaryAccountSuffix = lastFourDigits
         configuration.localizedDescription = localizedDescription
         configuration.paymentNetwork = self.getPaymentNetwork(paymentNetwork)
-        
+    
         guard let addPaymentPassVC = PKAddPaymentPassViewController(
             requestConfiguration: configuration,
             delegate: self
@@ -112,20 +112,36 @@ class SLMWalletProvisioning: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
             self.sendError("Cannot create Apple Pay view controller")
             return
         }
-        
+    
         self.addPaymentPassVC = addPaymentPassVC
         UserDefaults.standard.set(cardId, forKey: "currentCardIdProvisioning")
+    
+    // ✅ OBTENER EL TOP MOST VIEW CONTROLLER
+    DispatchQueue.main.async { [weak self] in
+        guard let self = self else { return }
         
-        guard let viewController = self.viewController else {
-            self.sendError("No view controller available")
+        // Obtener el view controller que está actualmente visible
+        var topController = self.viewController
+        
+        // Si el viewController de Cordova no está disponible, buscar alternativas
+        if topController == nil {
+            topController = UIApplication.shared.keyWindow?.rootViewController
+        }
+        
+        // Subir por la jerarquía hasta el top-most
+        while let presentedViewController = topController?.presentedViewController {
+            topController = presentedViewController
+        }
+        
+        guard let presentingController = topController else {
+            self.sendError("No view controller available to present Apple Wallet")
             return
         }
         
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            viewController.present(addPaymentPassVC, animated: true, completion: nil)
-        }
+        print("✅ Presentando Apple Wallet desde: \(type(of: presentingController))")
+        presentingController.present(addPaymentPassVC, animated: true, completion: nil)
     }
+}
     
     // MARK: - Generate Request Delegate
     
