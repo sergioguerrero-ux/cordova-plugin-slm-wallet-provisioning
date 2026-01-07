@@ -203,7 +203,6 @@ class SLMWalletProvisioning: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
         self.addPaymentPassVC = addPaymentPassVC
         UserDefaults.standard.set(cardId, forKey: "currentCardIdProvisioning")
         
-        // ✅ BUSCAR INAPPBROWSER ESPECÍFICAMENTE
         logToJS("   → Buscando InAppBrowser específicamente...")
         
         DispatchQueue.main.async { [weak self] in
@@ -214,27 +213,23 @@ class SLMWalletProvisioning: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
             
             var inAppBrowserVC: UIViewController?
             
-            // Función recursiva para buscar InAppBrowser
             func findInAppBrowser(in vc: UIViewController?) -> UIViewController? {
                 guard let vc = vc else { return nil }
                 
                 let vcType = String(describing: type(of: vc))
                 self.logToJS("      Chequeando: \(vcType)", type: "info")
                 
-                // Si es el InAppBrowser, lo encontramos
                 if vcType.contains("InAppBrowser") || vcType.contains("IAB") {
                     self.logToJS("      ✅ ENCONTRADO: \(vcType)", type: "success")
                     return vc
                 }
                 
-                // Buscar en presented view controller
                 if let presented = vc.presentedViewController {
                     if let found = findInAppBrowser(in: presented) {
                         return found
                     }
                 }
                 
-                // Buscar en child view controllers
                 for child in vc.children {
                     if let found = findInAppBrowser(in: child) {
                         return found
@@ -244,7 +239,6 @@ class SLMWalletProvisioning: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
                 return nil
             }
             
-            // ESTRATEGIA 1: Buscar desde self.viewController
             self.logToJS("   → Estrategia 1: Buscando desde self.viewController...", type: "info")
             if let cordovaVC = self.viewController {
                 self.logToJS("      Base: \(type(of: cordovaVC))", type: "info")
@@ -253,7 +247,6 @@ class SLMWalletProvisioning: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
                 self.logToJS("      self.viewController es nil", type: "warning")
             }
             
-            // ESTRATEGIA 2: Buscar en todas las windows
             if inAppBrowserVC == nil {
                 self.logToJS("   → Estrategia 2: Buscando en windows...", type: "info")
                 
@@ -269,7 +262,6 @@ class SLMWalletProvisioning: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
                 }
             }
             
-            // ESTRATEGIA 3: Si no encontramos InAppBrowser, usar top-most
             if inAppBrowserVC == nil {
                 self.logToJS("   ⚠️ InAppBrowser no encontrado, usando top-most...", type: "warning")
                 
@@ -296,19 +288,15 @@ class SLMWalletProvisioning: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
             self.logToJS("✅ View controller seleccionado: \(type(of: presentingVC))", type: "success")
             self.logToJS("   isViewLoaded: \(presentingVC.isViewLoaded)")
             self.logToJS("   view.window: \(presentingVC.view.window != nil ? "existe" : "nil")")
-            self.logToJS("   isBeingPresented: \(presentingVC.isBeingPresented)")
-            self.logToJS("   isBeingDismissed: \(presentingVC.isBeingDismissed)")
             
-            // Verificar si está ocupado
             if presentingVC.isBeingPresented || presentingVC.isBeingDismissed {
-                self.logToJS("   ⚠️ View controller ocupado, esperando 0.5s...", type: "warning")
+                self.logToJS("   ⚠️ View controller ocupado, esperando...", type: "warning")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     self.attemptPresentation(from: presentingVC, vc: addPaymentPassVC)
                 }
                 return
             }
             
-            // Presentar inmediatamente
             self.attemptPresentation(from: presentingVC, vc: addPaymentPassVC)
         }
     }
@@ -316,149 +304,75 @@ class SLMWalletProvisioning: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
     // MARK: - Attempt Presentation
     
     private func attemptPresentation(from presentingVC: UIViewController, vc: PKAddPaymentPassViewController) {
-        logToJS("🎬 PRESENTANDO APPLE WALLET SOBRE INAPPBROWSER...", type: "info")
-        logToJS("   Desde: \(type(of: presentingVC))", type: "info")
+        logToJS("🎬 PRESENTANDO APPLE WALLET...", type: "info")
         
         presentingVC.present(vc, animated: true) { [weak self] in
             self?.logToJS("✅ Completion handler ejecutado", type: "success")
         }
         
-        // Verificar a los 0.5s
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             if let presented = presentingVC.presentedViewController {
                 self?.logToJS("✅ 0.5s: \(type(of: presented)) visible", type: "success")
                 
                 if presented is PKAddPaymentPassViewController {
-                    self?.logToJS("✅ ✅ ✅ CONFIRMADO: Apple Wallet visible!", type: "success")
+                    self?.logToJS("✅ ✅ ✅ APPLE WALLET VISIBLE!", type: "success")
                 }
             } else {
-                self?.logToJS("❌ 0.5s: No hay presentedViewController", type: "error")
-            }
-        }
-        
-        // Verificación final a 1.5s
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            if presentingVC.presentedViewController != nil {
-                self?.logToJS("✅ 1.5s: Apple Wallet sigue visible", type: "success")
-            } else {
-                self?.logToJS("❌ 1.5s: FALLO - No se presentó", type: "error")
-                
-                // Intentar sin animación como último recurso
-                self?.logToJS("   → Reintentando sin animación...", type: "warning")
-                presentingVC.present(vc, animated: false, completion: nil)
+                self?.logToJS("❌ 0.5s: No presentedViewController", type: "error")
             }
         }
     }
     
     // MARK: - Generate Request Delegate
     
-    // MARK: - Did Finish Delegate
-
-func addPaymentPassViewController(
-    _ controller: PKAddPaymentPassViewController,
-    didFinishAdding pass: PKPaymentPass?,
-    error: Error?
-) {
-    logToJS("🏁 Apple Wallet delegate didFinishAdding llamado", type: "info")
-    
-    // Log del estado ANTES de cerrar
-    logToJS("   Estado ANTES de dismiss:", type: "info")
-    logToJS("   - pass: \(pass != nil ? "existe" : "nil")")
-    logToJS("   - error: \(error?.localizedDescription ?? "nil")")
-    
-    if let error = error {
-        logToJS("   ❌ Error detectado: \(error.localizedDescription)", type: "error")
-    } else if let pass = pass {
-        logToJS("   ✅ Pass agregado: \(pass.primaryAccountNumberSuffix)", type: "success")
-    } else {
-        logToJS("   ⚠️ Usuario canceló (pass y error son nil)", type: "warning")
+    func addPaymentPassViewController(
+        _ controller: PKAddPaymentPassViewController,
+        generateRequestWithCertificateChain certificates: [Data],
+        nonce: Data,
+        nonceSignature: Data,
+        completionHandler handler: @escaping (PKAddPaymentPassRequest) -> Void
+    ) {
+        logToJS("📱 Apple solicitó datos!", type: "info")
+        
+        self.pendingCompletionHandler = handler
+        
+        guard let cardId = UserDefaults.standard.string(forKey: "currentCardIdProvisioning") else {
+            logToJS("❌ cardId no encontrado", type: "error")
+            return
+        }
+        
+        let certificatesBase64 = certificates.map { $0.base64EncodedString() }
+        let nonceBase64 = nonce.base64EncodedString()
+        let nonceSignatureBase64 = nonceSignature.base64EncodedString()
+        
+        logToJS("📦 Datos: \(certificates.count) certs")
+        
+        let provisioningData: [String: Any] = [
+            "cardId": cardId,
+            "certificates": certificatesBase64,
+            "nonce": nonceBase64,
+            "nonceSignature": nonceSignatureBase64
+        ]
+        
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: provisioningData),
+              let jsonString = String(data: jsonData, encoding: .utf8) else {
+            logToJS("❌ Error JSON", type: "error")
+            return
+        }
+        
+        let jsCode = """
+        cordova.fireDocumentEvent('onApplePayProvisioningRequest', \(jsonString));
+        """
+        
+        self.commandDelegate.evalJs(jsCode)
+        logToJS("✅ Evento enviado", type: "success")
     }
-    
-    // Obtener referencia al presenting view controller ANTES de dismiss
-    let presentingVC = controller.presentingViewController
-    logToJS("   presentingViewController: \(presentingVC != nil ? String(describing: type(of: presentingVC!)) : "nil")")
-    
-    logToJS("   → Llamando controller.dismiss()...", type: "info")
-    
-    controller.dismiss(animated: true) { [weak self] in
-        self?.logToJS("   ✅ Dismiss completion ejecutado", type: "success")
-        
-        // Verificar que el InAppBrowser sigue ahí
-        if let presenting = presentingVC {
-            self?.logToJS("   → Verificando presentingViewController después de dismiss...", type: "info")
-            self?.logToJS("      Tipo: \(type(of: presenting))", type: "info")
-            self?.logToJS("      isViewLoaded: \(presenting.isViewLoaded)")
-            self?.logToJS("      view.window: \(presenting.view.window != nil ? "existe" : "nil")")
-            
-            if presenting.view.window != nil {
-                self?.logToJS("   ✅ InAppBrowser sigue visible", type: "success")
-            } else {
-                self?.logToJS("   ❌ InAppBrowser perdió su window!", type: "error")
-            }
-        }
-        
-        // Limpiar datos
-        UserDefaults.standard.removeObject(forKey: "currentCardIdProvisioning")
-        self?.logToJS("   Datos de provisioning limpiados")
-        
-        // Preparar resultado
-        var resultData: [String: Any] = [:]
-        var resultMessage = ""
-        var isError = false
-        
-        if let error = error {
-            isError = true
-            resultMessage = "Provisioning failed: \(error.localizedDescription)"
-            resultData = ["error": true, "message": resultMessage]
-            self?.logToJS("   📤 Enviando ERROR a webapp: \(resultMessage)", type: "error")
-        } else if let pass = pass {
-            isError = false
-            resultMessage = "Card added successfully"
-            resultData = [
-                "success": true,
-                "message": resultMessage,
-                "passTypeIdentifier": pass.passTypeIdentifier,
-                "serialNumber": pass.serialNumber,
-                "primaryAccountSuffix": pass.primaryAccountNumberSuffix
-            ]
-            self?.logToJS("   📤 Enviando SUCCESS a webapp", type: "success")
-        } else {
-            isError = true
-            resultMessage = "User cancelled"
-            resultData = ["error": true, "message": resultMessage, "cancelled": true]
-            self?.logToJS("   📤 Enviando CANCEL a webapp", type: "warning")
-        }
-        
-        // Enviar resultado
-        if isError {
-            self?.sendError(resultMessage)
-        } else {
-            self?.sendSuccess(resultData)
-        }
-        
-        self?.logToJS("✅ didFinishAdding COMPLETADO", type: "success")
-        
-        // Verificación adicional después de un delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            self?.logToJS("   → Verificación 0.5s después de completar...", type: "info")
-            
-            if let presenting = presentingVC {
-                if presenting.view.window != nil {
-                    self?.logToJS("   ✅ InAppBrowser confirmado visible 0.5s después", type: "success")
-                } else {
-                    self?.logToJS("   ❌ InAppBrowser YA NO tiene window 0.5s después!", type: "error")
-                    self?.logToJS("   Esto indica que algo lo cerró externamente", type: "error")
-                }
-            }
-        }
-    }
-}
     
     // MARK: - Complete Provisioning
     
     @objc(completeProvisioning:)
     func completeProvisioning(command: CDVInvokedUrlCommand) {
-        logToJS("📥 Completando provisioning con datos de Pomelo...")
+        logToJS("📥 Completando provisioning...")
         
         guard let params = command.arguments[0] as? [String: Any],
               let activationDataBase64 = params["activationData"] as? String,
@@ -473,13 +387,13 @@ func addPaymentPassViewController(
         guard let activationData = Data(base64Encoded: activationDataBase64),
               let encryptedPassData = Data(base64Encoded: encryptedPassDataBase64),
               let ephemeralPublicKey = Data(base64Encoded: ephemeralPublicKeyBase64) else {
-            logToJS("❌ Error decodificando Base64", type: "error")
+            logToJS("❌ Base64 inválido", type: "error")
             let result = CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: "Invalid Base64")
             self.commandDelegate.send(result, callbackId: command.callbackId)
             return
         }
         
-        logToJS("✅ Datos decodificados: act=\(activationData.count), enc=\(encryptedPassData.count), eph=\(ephemeralPublicKey.count)")
+        logToJS("✅ Datos OK")
         
         let request = PKAddPaymentPassRequest()
         request.activationData = activationData
@@ -490,16 +404,16 @@ func addPaymentPassViewController(
             logToJS("📤 Enviando a Apple...", type: "info")
             handler(request)
             self.pendingCompletionHandler = nil
-            logToJS("✅ Datos enviados a Apple", type: "success")
+            logToJS("✅ Enviado", type: "success")
         } else {
-            logToJS("❌ No hay handler pendiente", type: "error")
+            logToJS("❌ No handler", type: "error")
         }
         
-        let result = CDVPluginResult(status: CDVCommandStatus_OK, messageAs: "Data sent to Apple")
+        let result = CDVPluginResult(status: CDVCommandStatus_OK, messageAs: "Data sent")
         self.commandDelegate.send(result, callbackId: command.callbackId)
     }
     
-    // MARK: - Did Finish Delegate
+    // MARK: - Did Finish Delegate (ÚNICA VERSIÓN)
     
     func addPaymentPassViewController(
         _ controller: PKAddPaymentPassViewController,
@@ -508,24 +422,39 @@ func addPaymentPassViewController(
     ) {
         logToJS("🏁 Apple Wallet finalizó", type: "info")
         
-        controller.dismiss(animated: true) {
+        let presentingVC = controller.presentingViewController
+        logToJS("   presentingVC: \(presentingVC != nil ? String(describing: type(of: presentingVC!)) : "nil")")
+        
+        logToJS("   → Dismiss...", type: "info")
+        
+        controller.dismiss(animated: true) { [weak self] in
+            self?.logToJS("   ✅ Dismiss completado", type: "success")
+            
+            if let presenting = presentingVC {
+                if presenting.view.window != nil {
+                    self?.logToJS("   ✅ InAppBrowser visible", type: "success")
+                } else {
+                    self?.logToJS("   ❌ InAppBrowser perdió window", type: "error")
+                }
+            }
+            
             UserDefaults.standard.removeObject(forKey: "currentCardIdProvisioning")
             
             if let error = error {
-                self.logToJS("❌ Error: \(error.localizedDescription)", type: "error")
-                self.sendError("Provisioning failed: \(error.localizedDescription)")
+                self?.logToJS("❌ Error: \(error.localizedDescription)", type: "error")
+                self?.sendError("Failed: \(error.localizedDescription)")
             } else if let pass = pass {
-                self.logToJS("🎉 Tarjeta agregada!", type: "success")
-                self.sendSuccess([
+                self?.logToJS("🎉 Tarjeta agregada!", type: "success")
+                self?.sendSuccess([
                     "success": true,
-                    "message": "Card added successfully",
+                    "message": "Card added",
                     "passTypeIdentifier": pass.passTypeIdentifier,
                     "serialNumber": pass.serialNumber,
                     "primaryAccountSuffix": pass.primaryAccountNumberSuffix
                 ])
             } else {
-                self.logToJS("⚠️ Usuario canceló", type: "warning")
-                self.sendError("User cancelled")
+                self?.logToJS("⚠️ Cancelado", type: "warning")
+                self?.sendError("User cancelled")
             }
         }
     }
@@ -534,10 +463,10 @@ func addPaymentPassViewController(
     
     @objc(testCallback:)
     func testCallback(command: CDVInvokedUrlCommand) {
-        logToJS("🧪 Test callback", type: "success")
+        logToJS("🧪 Test", type: "success")
         let result = CDVPluginResult(
             status: CDVCommandStatus_OK,
-            messageAs: ["test": "success", "message": "Plugin works!"]
+            messageAs: ["test": "success"]
         )
         self.commandDelegate.send(result, callbackId: command.callbackId)
     }
@@ -559,49 +488,22 @@ func addPaymentPassViewController(
         }
     }
     
-private func sendSuccess(_ data: [String: Any]) {
-    logToJS("📤 sendSuccess iniciado", type: "info")
-    
-    guard let callbackId = self.commandCallback else {
-        logToJS("   ⚠️ No hay callbackId", type: "warning")
-        return
+    private func sendSuccess(_ data: [String: Any]) {
+        guard let callbackId = self.commandCallback else { return }
+        let result = CDVPluginResult(status: CDVCommandStatus_OK, messageAs: data)
+        result?.setKeepCallbackAs(false)
+        self.commandDelegate.send(result, callbackId: callbackId)
+        self.commandCallback = nil
     }
     
-    logToJS("   Enviando resultado SUCCESS al callback \(callbackId)")
-    
-    let result = CDVPluginResult(status: CDVCommandStatus_OK, messageAs: data)
-    
-    // ✅ IMPORTANTE: keepCallback = false para que no se llame múltiples veces
-    result?.setKeepCallbackAs(false)
-    
-    self.commandDelegate.send(result, callbackId: callbackId)
-    self.commandCallback = nil
-    
-    logToJS("   ✅ SUCCESS enviado", type: "success")
-}
-
-private func sendError(_ message: String) {
-    logToJS("📤 sendError iniciado", type: "info")
-    
-    guard let callbackId = self.commandCallback else {
-        logToJS("   ⚠️ No hay callbackId", type: "warning")
-        return
+    private func sendError(_ message: String) {
+        guard let callbackId = self.commandCallback else { return }
+        let result = CDVPluginResult(
+            status: CDVCommandStatus_ERROR,
+            messageAs: ["error": true, "message": message]
+        )
+        result?.setKeepCallbackAs(false)
+        self.commandDelegate.send(result, callbackId: callbackId)
+        self.commandCallback = nil
     }
-    
-    logToJS("   Enviando resultado ERROR al callback \(callbackId)")
-    logToJS("   Mensaje: \(message)", type: "error")
-    
-    let result = CDVPluginResult(
-        status: CDVCommandStatus_ERROR,
-        messageAs: ["error": true, "message": message]
-    )
-    
-    // ✅ IMPORTANTE: keepCallback = false
-    result?.setKeepCallbackAs(false)
-    
-    self.commandDelegate.send(result, callbackId: callbackId)
-    self.commandCallback = nil
-    
-    logToJS("   ✅ ERROR enviado", type: "success")
-}
 }
