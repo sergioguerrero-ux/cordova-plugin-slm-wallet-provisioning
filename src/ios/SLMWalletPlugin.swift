@@ -1,133 +1,117 @@
+import Foundation
 import PassKit
 
-@objc(SLMWalletPlugin)
-class SLMWalletPlugin: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
+@objc(SLMWalletPlugin) class SLMWalletPlugin : CDVPlugin, PKAddPaymentPassViewControllerDelegate {
     
-    private var currentCommand: CDVInvokedUrlCommand?
-    private var addPaymentVC: PKAddPaymentPassViewController?
+    private var currentCallbackId: String?
+    private var addPaymentPassVC: PKAddPaymentPassViewController?
     
-    // Función auxiliar para enviar logs al JavaScript
-    private func sendLog(_ message: String) {
-        let jsCode = "console.log('[SWIFT] \(message.replacingOccurrences(of: "'", with: "\\'"))');"
-        self.webView.evaluateJavaScript(jsCode, completionHandler: nil)
+    // MARK: - Cordova JavaScript Bridge Helper
+    
+    private func evaluateJS(_ jsCode: String) {
+        if let wkWebView = self.webView as? WKWebView {
+            wkWebView.evaluateJavaScript(jsCode) { (result, error) in
+                if let error = error {
+                    print("JavaScript evaluation error: \(error.localizedDescription)")
+                }
+            }
+        }
     }
     
+    // MARK: - Cordova Plugin Methods
+    
     @objc(appleCanAdd:)
-    func appleCanAdd(command: CDVInvokedUrlCommand) {
-        sendLog("appleCanAdd llamado")
-        let canAdd = PKAddPaymentPassViewController.canAddPaymentPass()
-        sendLog("canAddPaymentPass = \(canAdd)")
+    func appleCanAdd(_ command: CDVInvokedUrlCommand) {
+        var pluginResult: CDVPluginResult
         
-        let result: [String: Any] = [
-            "ok": true,
-            "canAdd": canAdd
-        ]
+        // Verificar que el dispositivo sea compatible con Apple Pay
+        guard PKAddPaymentPassViewController.canAddPaymentPass() else {
+            pluginResult = CDVPluginResult(status: CDVCommandStatus_OK, messageAs: ["canAdd": false])
+            self.commandDelegate.send(pluginResult, callbackId: command.callbackId)
+            return
+        }
         
-        let pluginResult = CDVPluginResult(status: .ok, messageAs: result)
-        commandDelegate.send(pluginResult, callbackId: command.callbackId)
+        pluginResult = CDVPluginResult(status: CDVCommandStatus_OK, messageAs: ["canAdd": true])
+        self.commandDelegate.send(pluginResult, callbackId: command.callbackId)
     }
     
     @objc(appleStartAdd:)
-    func appleStartAdd(command: CDVInvokedUrlCommand) {
-        sendLog("========== INICIO appleStartAdd ==========")
-        
-        guard let options = command.arguments[0] as? [String: Any] else {
-            sendLog("ERROR: options inválidas")
-            sendError(command, "invalid_options")
+    func appleStartAdd(_ command: CDVInvokedUrlCommand) {
+        guard let opts = command.arguments.first as? [String: Any] else {
+            let result = CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: "Invalid parameters")
+            self.commandDelegate.send(result, callbackId: command.callbackId)
             return
         }
         
-        sendLog("Options recibidas OK")
-        
-        guard let cardId = options["cardId"] as? String else {
-            sendLog("ERROR: cardId faltante")
-            sendError(command, "missing_card_id")
+        // Verificar compatibilidad del dispositivo
+        guard PKAddPaymentPassViewController.canAddPaymentPass() else {
+            let result = CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: "Device does not support adding payment passes")
+            self.commandDelegate.send(result, callbackId: command.callbackId)
             return
         }
         
-        guard let holderName = options["holderName"] as? String else {
-            sendLog("ERROR: holderName faltante")
-            sendError(command, "missing_holder_name")
+        self.currentCallbackId = command.callbackId
+        
+        // Extraer parámetros de configuración
+        let cardholderName = opts["cardholderName"] as? String ?? ""
+        let last4 = opts["last4"] as? String ?? ""
+        let description = opts["description"] as? String ?? "Card"
+        let cardId = opts["cardId"] as? String ?? opts["card_id"] as? String ?? ""
+        
+        // Configuración del endpoint de tokenización
+        let tokenizationEndpoint = opts["tokenizationEndpoint"] as? String 
+            ?? "https://api.pomelo.la/token-provisioning/mastercard/apple-pay"
+        
+        var tokenizationAuthorization = opts["tokenizationAuthorization"] as? String ?? ""
+        
+        // Si no hay tokenizationAuthorization, intentar construirlo desde authToken y authScheme
+        if tokenizationAuthorization.isEmpty {
+            let authToken = opts["tokenizationAuthToken"] as? String ?? ""
+            let authScheme = opts["tokenizationAuthScheme"] as? String ?? "Bearer"
+            if !authToken.isEmpty {
+                tokenizationAuthorization = "\(authScheme) \(authToken)"
+            }
+        }
+        
+        let tokenizationHeaders = opts["tokenizationHeaders"] as? [String: String] ?? [:]
+        let userId = opts["userId"] as? String ?? opts["user_id"] as? String ?? ""
+        
+        // Guardar configuración para uso posterior
+        UserDefaults.standard.set(tokenizationEndpoint, forKey: "SLMWallet_tokenizationEndpoint")
+        UserDefaults.standard.set(tokenizationAuthorization, forKey: "SLMWallet_tokenizationAuthorization")
+        UserDefaults.standard.set(tokenizationHeaders, forKey: "SLMWallet_tokenizationHeaders")
+        UserDefaults.standard.set(cardId, forKey: "SLMWallet_cardId")
+        UserDefaults.standard.set(userId, forKey: "SLMWallet_userId")
+        
+        // Configurar PKAddPaymentPassRequestConfiguration
+        guard let configuration = PKAddPaymentPassRequestConfiguration(encryptionScheme: .ECC_V2) else {
+            let result = CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: "Failed to create payment pass configuration")
+            self.commandDelegate.send(result, callbackId: command.callbackId)
+            self.currentCallbackId = nil
             return
         }
         
-        guard let last4 = options["last4"] as? String else {
-            sendLog("ERROR: last4 faltante")
-            sendError(command, "missing_last4")
+        configuration.cardholderName = cardholderName
+        configuration.primaryAccountSuffix = last4
+        configuration.localizedDescription = description
+        configuration.primaryAccountIdentifier = cardId
+        
+        // Crear y presentar el view controller de Apple Pay
+        guard let vc = PKAddPaymentPassViewController(requestConfiguration: configuration, delegate: self) else {
+            let result = CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: "Failed to create PKAddPaymentPassViewController")
+            self.commandDelegate.send(result, callbackId: command.callbackId)
+            self.currentCallbackId = nil
             return
         }
         
-        sendLog("Parámetros OK - cardId: \(cardId)")
+        self.addPaymentPassVC = vc
         
-        let localizedDescription = options["localizedDescription"] as? String ?? "Tarjeta"
-        
-        let encryptionScheme: PKEncryptionScheme
-        if let schemeStr = options["encryptionScheme"] as? String, schemeStr == "RSA_V2" {
-            encryptionScheme = .RSA_V2
-            sendLog("encryptionScheme: RSA_V2")
-        } else {
-            encryptionScheme = .ECC_V2
-            sendLog("encryptionScheme: ECC_V2")
-        }
-        
-        let cardBrand = options["cardBrand"] as? String ?? "mastercard"
-        sendLog("cardBrand: \(cardBrand)")
-        
-        self.currentCommand = command
-        sendLog("Command guardado")
-        
-        sendLog("Creando PKAddPaymentPassRequestConfiguration...")
-        guard let config = PKAddPaymentPassRequestConfiguration(encryptionScheme: encryptionScheme) else {
-            sendLog("ERROR: No se pudo crear configuración")
-            sendError(command, "cannot_create_configuration")
-            return
-        }
-        sendLog("✅ Configuración creada")
-        
-        config.cardholderName = holderName
-        config.primaryAccountSuffix = last4
-        config.localizedDescription = localizedDescription
-        config.primaryAccountIdentifier = cardId
-        
-        if cardBrand.lowercased() == "visa" {
-            config.paymentNetwork = .visa
-            sendLog("paymentNetwork: VISA")
-        } else {
-            config.paymentNetwork = .masterCard
-            sendLog("paymentNetwork: MASTERCARD")
-        }
-        
-        sendLog("Creando PKAddPaymentPassViewController...")
-        guard let vc = PKAddPaymentPassViewController(
-            requestConfiguration: config,
-            delegate: self
-        ) else {
-            sendLog("ERROR: No se pudo crear View Controller")
-            sendError(command, "cannot_create_view_controller")
-            return
-        }
-        sendLog("✅ View Controller creado")
-        
-        objc_setAssociatedObject(vc, "options", options, .OBJC_ASSOCIATION_RETAIN)
-        self.addPaymentVC = vc
-        
-        sendLog("Intentando presentar UI...")
         DispatchQueue.main.async {
-            self.sendLog("En main thread")
-            
-            if self.viewController.presentedViewController != nil {
-                self.sendLog("WARNING: Ya hay un VC presentado")
-            }
-            
-            self.viewController.present(vc, animated: true) {
-                self.sendLog("✅ UI PRESENTADA (completion)")
-            }
-            
-            self.sendLog("present() ejecutado")
+            self.viewController.present(vc, animated: true, completion: nil)
         }
-        
-        sendLog("========== FIN appleStartAdd ==========")
     }
+    
+    // MARK: - PKAddPaymentPassViewControllerDelegate
     
     func addPaymentPassViewController(
         _ controller: PKAddPaymentPassViewController,
@@ -136,70 +120,104 @@ class SLMWalletPlugin: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
         nonceSignature: Data,
         completionHandler handler: @escaping (PKAddPaymentPassRequest) -> Void
     ) {
-        sendLog("========== generateRequest LLAMADO ==========")
-        sendLog("Certificados: \(certificates.count)")
-        
-        guard let options = objc_getAssociatedObject(controller, "options") as? [String: Any],
-              let cardId = options["cardId"] as? String else {
-            sendLog("ERROR: No se pudieron recuperar opciones")
-            handler(PKAddPaymentPassRequest())
+        // Recuperar configuración guardada
+        guard let endpoint = UserDefaults.standard.string(forKey: "SLMWallet_tokenizationEndpoint"),
+              let authorization = UserDefaults.standard.string(forKey: "SLMWallet_tokenizationAuthorization"),
+              let cardId = UserDefaults.standard.string(forKey: "SLMWallet_cardId") else {
+            print("Missing tokenization configuration")
             return
         }
         
-        sendLog("cardId: \(cardId)")
+        let headers = UserDefaults.standard.dictionary(forKey: "SLMWallet_tokenizationHeaders") as? [String: String] ?? [:]
+        let userId = UserDefaults.standard.string(forKey: "SLMWallet_userId") ?? ""
         
-        let backendUrl = options["backendUrl"] as? String ?? 
-            "https://api.pomelo.la/token-provisioning/mastercard/apple-pay"
-        sendLog("backendUrl: \(backendUrl)")
+        // Convertir certificates, nonce y nonceSignature a Base64
+        let certificatesBase64 = certificates.map { $0.base64EncodedString() }
+        let nonceBase64 = nonce.base64EncodedString()
+        let nonceSignatureBase64 = nonceSignature.base64EncodedString()
         
-        let backendHeaders = options["backendHeaders"] as? [String: String] ?? [:]
-        let userId = options["userId"] as? String
-        
-        var payload: [String: Any] = [
+        // Construir el request body para Pomelo
+        var requestBody: [String: Any] = [
             "card_id": cardId,
-            "certificates": certificates.map { $0.base64EncodedString() },
-            "nonce": nonce.base64EncodedString(),
-            "nonce_signature": nonceSignature.base64EncodedString()
+            "certificates": certificatesBase64,
+            "nonce": nonceBase64,
+            "nonce_signature": nonceSignatureBase64
         ]
         
-        if let userId = userId {
-            payload["user_id"] = userId
+        if !userId.isEmpty {
+            requestBody["user_id"] = userId
         }
         
-        sendLog("Llamando API de Pomelo...")
+        // Llamar al endpoint de Pomelo
+        guard let url = URL(string: endpoint) else {
+            print("Invalid endpoint URL")
+            return
+        }
         
-        callPomeloAPI(
-            url: backendUrl,
-            headers: backendHeaders,
-            payload: payload
-        ) { result in
-            switch result {
-            case .success(let data):
-                self.sendLog("✅ API respondió OK")
-                
-                guard let activationData = data["activation_data"] as? String,
-                      let encryptedPassData = data["encrypted_pass_data"] as? String,
-                      let ephemeralPublicKey = data["ephemeral_public_key"] as? String else {
-                    self.sendLog("ERROR: Campos faltantes en respuesta")
-                    handler(PKAddPaymentPassRequest())
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(authorization, forHTTPHeaderField: "Authorization")
+        
+        // Agregar headers personalizados
+        for (key, value) in headers {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        } catch {
+            print("Failed to serialize request body: \(error)")
+            return
+        }
+        
+        // Realizar la llamada al backend
+        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                print("Network error: \(error)")
+                return
+            }
+            
+            guard let data = data else {
+                print("No data received from server")
+                return
+            }
+            
+            do {
+                guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let dataObject = json["data"] as? [String: Any],
+                      let activationDataBase64 = dataObject["activation_data"] as? String,
+                      let encryptedPassDataBase64 = dataObject["encrypted_pass_data"] as? String,
+                      let ephemeralPublicKeyBase64 = dataObject["ephemeral_public_key"] as? String else {
+                    print("Invalid response structure from Pomelo")
                     return
                 }
                 
-                self.sendLog("Decodificando datos...")
+                // Decodificar de Base64
+                guard let activationData = Data(base64Encoded: activationDataBase64),
+                      let encryptedPassData = Data(base64Encoded: encryptedPassDataBase64),
+                      let ephemeralPublicKey = Data(base64Encoded: ephemeralPublicKeyBase64) else {
+                    print("Failed to decode base64 data")
+                    return
+                }
                 
-                let request = PKAddPaymentPassRequest()
-                request.activationData = Data(base64Encoded: activationData)
-                request.encryptedPassData = Data(base64Encoded: encryptedPassData)
-                request.ephemeralPublicKey = Data(base64Encoded: ephemeralPublicKey)
+                // Construir PKAddPaymentPassRequest
+                let passRequest = PKAddPaymentPassRequest()
+                passRequest.activationData = activationData
+                passRequest.encryptedPassData = encryptedPassData
+                passRequest.ephemeralPublicKey = ephemeralPublicKey
                 
-                self.sendLog("✅ Enviando datos a Apple")
-                handler(request)
+                // Llamar al completion handler con el request
+                DispatchQueue.main.async {
+                    handler(passRequest)
+                }
                 
-            case .failure(let error):
-                self.sendLog("ERROR API: \(error.localizedDescription)")
-                handler(PKAddPaymentPassRequest())
+            } catch {
+                print("Failed to parse response: \(error)")
             }
         }
+        
+        task.resume()
     }
     
     func addPaymentPassViewController(
@@ -207,104 +225,45 @@ class SLMWalletPlugin: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
         didFinishAdding pass: PKPaymentPass?,
         error: Error?
     ) {
-        sendLog("========== didFinishAdding LLAMADO ==========")
-        
-        if let error = error {
-            sendLog("ERROR: \(error.localizedDescription)")
-        }
-        
-        if let pass = pass {
-            sendLog("✅ Tarjeta agregada: \(pass.serialNumber)")
-        }
-        
         controller.dismiss(animated: true) {
-            guard let command = self.currentCommand else { return }
+            guard let callbackId = self.currentCallbackId else { return }
+            
+            var result: CDVPluginResult
             
             if let error = error {
-                self.sendError(command, error.localizedDescription)
+                // Error al agregar la tarjeta
+                result = CDVPluginResult(
+                    status: CDVCommandStatus_ERROR,
+                    messageAs: ["error": error.localizedDescription, "added": false]
+                )
             } else if let pass = pass {
-                let result: [String: Any] = [
-                    "ok": true,
+                // Tarjeta agregada exitosamente
+                let passInfo: [String: Any] = [
                     "added": true,
                     "serialNumber": pass.serialNumber,
-                    "deviceAccountIdentifier": pass.deviceAccountIdentifier ?? ""
+                    "passTypeIdentifier": pass.passTypeIdentifier,
+                    "deviceAccountIdentifier": pass.deviceAccountIdentifier,
+                    "deviceAccountNumberSuffix": pass.deviceAccountNumberSuffix
                 ]
-                let pluginResult = CDVPluginResult(status: .ok, messageAs: result)
-                self.commandDelegate.send(pluginResult, callbackId: command.callbackId)
-                self.sendLog("✅ Resultado enviado")
+                result = CDVPluginResult(status: CDVCommandStatus_OK, messageAs: passInfo)
             } else {
-                self.sendError(command, "user_cancelled")
+                // Cancelado por el usuario
+                result = CDVPluginResult(
+                    status: CDVCommandStatus_ERROR,
+                    messageAs: ["error": "User cancelled", "added": false]
+                )
             }
             
-            self.currentCommand = nil
-            self.addPaymentVC = nil
-        }
-    }
-    
-    private func callPomeloAPI(
-        url: String,
-        headers: [String: String],
-        payload: [String: Any],
-        completion: @escaping (Result<[String: Any], Error>) -> Void
-    ) {
-        guard let requestUrl = URL(string: url) else {
-            sendLog("ERROR: URL inválida")
-            completion(.failure(NSError(domain: "Invalid URL", code: -1)))
-            return
-        }
-        
-        var request = URLRequest(url: requestUrl)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        for (key, value) in headers {
-            request.setValue(value, forHTTPHeaderField: key)
-        }
-        
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-        } catch {
-            sendLog("ERROR: Serializando JSON")
-            completion(.failure(error))
-            return
-        }
-        
-        sendLog("Request enviado")
-        
-        let task = URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error {
-                self.sendLog("ERROR: Network - \(error.localizedDescription)")
-                completion(.failure(error))
-                return
-            }
+            self.commandDelegate.send(result, callbackId: callbackId)
+            self.currentCallbackId = nil
+            self.addPaymentPassVC = nil
             
-            if let httpResponse = response as? HTTPURLResponse {
-                self.sendLog("HTTP Status: \(httpResponse.statusCode)")
-            }
-            
-            guard let data = data else {
-                self.sendLog("ERROR: No data")
-                completion(.failure(NSError(domain: "No data", code: -2)))
-                return
-            }
-            
-            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let responseData = json["data"] as? [String: Any] else {
-                self.sendLog("ERROR: Invalid JSON response")
-                completion(.failure(NSError(domain: "Invalid response", code: -3)))
-                return
-            }
-            
-            completion(.success(responseData))
+            // Limpiar UserDefaults
+            UserDefaults.standard.removeObject(forKey: "SLMWallet_tokenizationEndpoint")
+            UserDefaults.standard.removeObject(forKey: "SLMWallet_tokenizationAuthorization")
+            UserDefaults.standard.removeObject(forKey: "SLMWallet_tokenizationHeaders")
+            UserDefaults.standard.removeObject(forKey: "SLMWallet_cardId")
+            UserDefaults.standard.removeObject(forKey: "SLMWallet_userId")
         }
-        
-        task.resume()
-    }
-    
-    private func sendError(_ command: CDVInvokedUrlCommand, _ message: String) {
-        sendLog("Enviando error: \(message)")
-        let result: [String: Any] = ["ok": false, "error": message]
-        let pluginResult = CDVPluginResult(status: .error, messageAs: result)
-        commandDelegate.send(pluginResult, callbackId: command.callbackId)
     }
 }
