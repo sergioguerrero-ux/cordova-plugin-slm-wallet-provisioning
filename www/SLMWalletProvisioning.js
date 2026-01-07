@@ -39,8 +39,13 @@ var SLMWalletProvisioning = {
      */
     completeProvisioning: function (provisioningData, successCallback, errorCallback) {
         exec(successCallback, errorCallback, 'SLMWalletProvisioning', 'completeProvisioning', [provisioningData]);
+    },
+    /**
+     * TEST: Verifica que los callbacks funcionen
+     */
+    testCallback: function (successCallback, errorCallback) {
+        exec(successCallback, errorCallback, 'SLMWalletProvisioning', 'testCallback', []);
     }
-
 };
 
 module.exports = SLMWalletProvisioning;

@@ -243,7 +243,20 @@ class SLMWalletProvisioning: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
         )
         self.commandDelegate.send(result, callbackId: command.callbackId)
     }
-    
+
+    @objc(testCallback:)
+    func testCallback(command: CDVInvokedUrlCommand) {
+        NSLog("🧪 [SLMWallet] TEST CALLBACK called")
+        
+        // Responder inmediatamente con éxito
+        let result = CDVPluginResult(
+            status: CDVCommandStatus_OK,
+            messageAs: ["test": "success", "message": "Plugin callbacks work!"]
+        )
+        self.commandDelegate.send(result, callbackId: command.callbackId)
+        
+        NSLog("🧪 [SLMWallet] TEST CALLBACK response sent")
+    }
     // MARK: - Resultado final del provisioning
     
     func addPaymentPassViewController(
