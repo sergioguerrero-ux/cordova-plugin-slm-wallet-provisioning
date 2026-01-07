@@ -17,57 +17,57 @@ class SLMWalletProvisioning: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
     
     // MARK: - Can Add Card
     
-@objc(canAddCard:)
-func canAddCard(command: CDVInvokedUrlCommand) {
-    logToJS("🔍 Verificando si puede agregar tarjeta...", type: "info")
-    
-    do {
-        logToJS("   Step 1: Creando diccionario result...", type: "info")
-        var result: [String: Any] = [:]
+    @objc(canAddCard:)
+    func canAddCard(command: CDVInvokedUrlCommand) {
+        logToJS("🔍 Verificando si puede agregar tarjeta...", type: "info")
         
-        logToJS("   Step 2: Llamando PKAddPaymentPassViewController.canAddPaymentPass()...", type: "info")
-        let canAddPass = PKAddPaymentPassViewController.canAddPaymentPass()
-        logToJS("   Step 2 OK: canAddPass = \(canAddPass)", type: "success")
-        
-        logToJS("   Step 3: Creando PKPassLibrary()...", type: "info")
-        let passLibrary = PKPassLibrary()
-        logToJS("   Step 3 OK", type: "success")
-        
-        logToJS("   Step 4: Obteniendo passes of .payment...", type: "info")
-        let paymentPasses = passLibrary.passes(of: .payment)
-        logToJS("   Step 4 OK: \(paymentPasses.count) passes encontrados", type: "success")
-        
-        logToJS("   Step 5: Calculando hasCards...", type: "info")
-        let hasCards = !paymentPasses.isEmpty
-        logToJS("   Step 5 OK: hasCards = \(hasCards)", type: "success")
-        
-        logToJS("   Step 6: Llamando PKPassLibrary.isPassLibraryAvailable()...", type: "info")
-        let libraryAvailable = PKPassLibrary.isPassLibraryAvailable()
-        logToJS("   Step 6 OK: libraryAvailable = \(libraryAvailable)", type: "success")
-        
-        logToJS("   Step 7: Construyendo result dictionary...", type: "info")
-        result["canAdd"] = canAddPass
-        result["hasCardsInWallet"] = hasCards
-        result["deviceSupportsWallet"] = libraryAvailable
-        result["message"] = canAddPass ? "Device supports Apple Wallet provisioning" : "Device does not support Apple Wallet"
-        logToJS("   Step 7 OK", type: "success")
-        
-        logToJS("✅ Resultado: canAdd=\(canAddPass), hasCards=\(hasCards), deviceSupports=\(libraryAvailable)", type: "success")
-        
-        logToJS("   Step 8: Creando CDVPluginResult...", type: "info")
-        let pluginResult = CDVPluginResult(status: CDVCommandStatus_OK, messageAs: result)
-        logToJS("   Step 8 OK", type: "success")
-        
-        logToJS("   Step 9: Enviando resultado al callback...", type: "info")
-        self.commandDelegate.send(pluginResult, callbackId: command.callbackId)
-        logToJS("✅ ✅ ✅ CALLBACK ENVIADO EXITOSAMENTE!", type: "success")
-        
-    } catch let error {
-        logToJS("❌ ERROR CAPTURADO: \(error.localizedDescription)", type: "error")
-        let errorResult = CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: "Error: \(error.localizedDescription)")
-        self.commandDelegate.send(errorResult, callbackId: command.callbackId)
+        do {
+            logToJS("   Step 1: Creando diccionario result...", type: "info")
+            var result: [String: Any] = [:]
+            
+            logToJS("   Step 2: Llamando PKAddPaymentPassViewController.canAddPaymentPass()...", type: "info")
+            let canAddPass = PKAddPaymentPassViewController.canAddPaymentPass()
+            logToJS("   Step 2 OK: canAddPass = \(canAddPass)", type: "success")
+            
+            logToJS("   Step 3: Creando PKPassLibrary()...", type: "info")
+            let passLibrary = PKPassLibrary()
+            logToJS("   Step 3 OK", type: "success")
+            
+            logToJS("   Step 4: Obteniendo passes of .payment...", type: "info")
+            let paymentPasses = passLibrary.passes(of: .payment)
+            logToJS("   Step 4 OK: \(paymentPasses.count) passes encontrados", type: "success")
+            
+            logToJS("   Step 5: Calculando hasCards...", type: "info")
+            let hasCards = !paymentPasses.isEmpty
+            logToJS("   Step 5 OK: hasCards = \(hasCards)", type: "success")
+            
+            logToJS("   Step 6: Llamando PKPassLibrary.isPassLibraryAvailable()...", type: "info")
+            let libraryAvailable = PKPassLibrary.isPassLibraryAvailable()
+            logToJS("   Step 6 OK: libraryAvailable = \(libraryAvailable)", type: "success")
+            
+            logToJS("   Step 7: Construyendo result dictionary...", type: "info")
+            result["canAdd"] = canAddPass
+            result["hasCardsInWallet"] = hasCards
+            result["deviceSupportsWallet"] = libraryAvailable
+            result["message"] = canAddPass ? "Device supports Apple Wallet provisioning" : "Device does not support Apple Wallet"
+            logToJS("   Step 7 OK", type: "success")
+            
+            logToJS("✅ Resultado: canAdd=\(canAddPass), hasCards=\(hasCards), deviceSupports=\(libraryAvailable)", type: "success")
+            
+            logToJS("   Step 8: Creando CDVPluginResult...", type: "info")
+            let pluginResult = CDVPluginResult(status: CDVCommandStatus_OK, messageAs: result)
+            logToJS("   Step 8 OK", type: "success")
+            
+            logToJS("   Step 9: Enviando resultado al callback...", type: "info")
+            self.commandDelegate.send(pluginResult, callbackId: command.callbackId)
+            logToJS("✅ ✅ ✅ CALLBACK ENVIADO EXITOSAMENTE!", type: "success")
+            
+        } catch let error {
+            logToJS("❌ ERROR CAPTURADO: \(error.localizedDescription)", type: "error")
+            let errorResult = CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: "Error: \(error.localizedDescription)")
+            self.commandDelegate.send(errorResult, callbackId: command.callbackId)
+        }
     }
-}
     
     // MARK: - Is Card In Wallet
     
