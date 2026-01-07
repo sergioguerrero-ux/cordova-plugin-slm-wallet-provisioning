@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
+    id="cordova-plugin-slm-wallet-provisioning"
+    version="1.0.0">
+    
+    <name>SLM Wallet Provisioning</name>
+    <description>Plugin para tokenización y provisioning de tarjetas en Apple Wallet y Google Pay</description>
+    <license>MIT</license>
+    <keywords>wallet,apple pay,apple wallet,tokenization,provisioning</keywords>
+    
+    <js-module src="www/SLMWalletProvisioning.js" name="SLMWalletProvisioning">
+        <clobbers target="SLMWalletProvisioning" />
+    </js-module>
+    
+    <!-- Configuración iOS -->
+    <platform name="ios">
+        <preference name="SWIFTVERSION" default="5.0" />
+        
+        <config-file target="config.xml" parent="/*">
+            <feature name="SLMWalletProvisioning">
+                <param name="ios-package" value="SLMWalletProvisioning"/>
+            </feature>
+        </config-file>
+        
+        <!-- Archivos del plugin -->
+        <source-file src="src/ios/SLMWalletProvisioning.swift" />
+        
+        <!-- Frameworks necesarios -->
+        <framework src="PassKit.framework" />
+        <framework src="WatchConnectivity.framework" weak="true" />
+        
+        <!-- Capabilities requeridas -->
+        <config-file target="*-Debug.plist" parent="com.apple.developer.pass-type-identifiers">
+            <array>
+                <string>$(TeamIdentifierPrefix)*</string>
+            </array>
+        </config-file>
+        
+        <config-file target="*-Release.plist" parent="com.apple.developer.pass-type-identifiers">
+            <array>
+                <string>$(TeamIdentifierPrefix)*</string>
+            </array>
+        </config-file>
+        
+        <!-- Entitlements para Apple Wallet -->
+        <config-file target="*-Debug.plist" parent="com.apple.developer.payment-pass-provisioning">
+            <true/>
+        </config-file>
+        
+        <config-file target="*-Release.plist" parent="com.apple.developer.payment-pass-provisioning">
+            <true/>
+        </config-file>
+    </platform>
+    
+</plugin>
