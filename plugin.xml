@@ -1,48 +1,54 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<plugin id="cordova-plugin-slm-wallet-provisioning"
-        version="1.0.0"
-        xmlns="http://apache.org/cordova/ns/plugins/1.0"
-        xmlns:android="http://schemas.android.com/apk/res/android">
-
-  <name>SLM Wallet Provisioning</name>
-
-  <js-module src="www/slmWallet.js" name="slmWallet">
-    <clobbers target="cordova.plugins.slmWallet" />
-  </js-module>
-
-  <!-- ANDROID -->
-  <platform name="android">
-    <config-file target="res/xml/config.xml" parent="/*">
-      <feature name="SlmWalletProvisioning">
-        <param name="android-package" value="com.slm.plugins.wallet.SlmWalletProvisioning"/>
-      </feature>
-    </config-file>
-
-    <source-file src="src/android/SlmWalletProvisioning.java"
-                 target-dir="src/com/slm/plugins/wallet" />
-
-    <resource-file src="src/android/build-extras.gradle" target="app/build-extras.gradle" />
-
-    <framework src="com.google.android.gms:play-services-wallet:18.1.3" />
-    <framework src="com.google.android.gms:play-services-base:18.5.0" />
-  </platform>
-
-  <!-- iOS (Swift) -->
-  <platform name="ios">
-    <config-file target="config.xml" parent="/*">
-      <feature name="SlmWalletProvisioning">
-        <param name="ios-package" value="SlmWalletProvisioning" />
-      </feature>
-    </config-file>
-
-    <!-- Swift source -->
-    <source-file src="src/ios/SlmWalletProvisioning.swift" />
-
-    <!-- Frameworks -->
-    <framework src="PassKit.framework" />
-
-    <!-- Build settings: Swift -->
-    <preference name="SwiftVersion" value="5.0" />
-  </platform>
-
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
+        id="cordova-plugin-slm-wallet-provisioning"
+        version="1.0.0">
+    
+    <name>SLM Wallet Provisioning</name>
+    <description>Apple Wallet and Google Wallet provisioning plugin</description>
+    <license>MIT</license>
+    
+    <!-- AGREGAR ESTA SECCIÓN -->
+    <preference name="SWIFTVERSION" default="5.0"/>
+    
+    <js-module src="www/SLMWallet.js" name="SLMWallet">
+        <clobbers target="cordova.plugins.slmWallet" />
+    </js-module>
+    
+    <!-- iOS Platform -->
+    <platform name="ios">
+        <config-file target="config.xml" parent="/*">
+            <feature name="SLMWallet">
+                <param name="ios-package" value="SLMWalletPlugin"/>
+            </feature>
+        </config-file>
+        
+        <!-- AGREGAR ESTA LÍNEA -->
+        <preference name="SwiftVersion" value="$SWIFTVERSION"/>
+        
+        <source-file src="src/ios/SLMWalletPlugin.swift"/>
+        
+        <header-file src="src/ios/SLMWalletPlugin-Bridging-Header.h"/>
+        
+        <framework src="PassKit.framework"/>
+        
+        <podspec>
+            <config>
+                <source url="https://cdn.cocoapods.org/"/>
+            </config>
+        </podspec>
+    </platform>
+    
+    <!-- Android Platform -->
+    <platform name="android">
+        <config-file target="config.xml" parent="/*">
+            <feature name="SLMWallet">
+                <param name="android-package" value="com.slm.wallet.SLMWalletPlugin"/>
+            </feature>
+        </config-file>
+        
+        <source-file src="src/android/SLMWalletPlugin.java" 
+                     target-dir="src/com/slm/wallet"/>
+        
+        <framework src="com.google.android.gms:play-services-wallet:19.1.0"/>
+    </platform>
 </plugin>
