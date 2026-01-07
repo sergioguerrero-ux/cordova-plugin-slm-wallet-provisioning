@@ -37,32 +37,56 @@ class SLMWalletPlugin: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
         }
         
         let localizedDescription = options["localizedDescription"] as? String ?? "Tarjeta"
-        let encryptionScheme = options["encryptionScheme"] as? String ?? "ECC_V2"
+        
+        // ⭐ IMPORTANTE: Determinar el encryption scheme correctamente
+        let encryptionScheme: PKEncryptionScheme
+        if let schemeStr = options["encryptionScheme"] as? String {
+            if schemeStr == "RSA_V2" {
+                encryptionScheme = .RSA_V2
+            } else {
+                encryptionScheme = .ECC_V2  // Por defecto ECC_V2
+            }
+        } else {
+            encryptionScheme = .ECC_V2
+        }
+        
+        // ⭐ IMPORTANTE: Obtener el card brand (visa/mastercard)
+        let cardBrand = options["cardBrand"] as? String ?? "mastercard"
         
         // Guardar el command para usarlo en el delegate
         self.currentCommand = command
         
-        // Crear la configuración para Apple
-        let config = PKAddPaymentPassRequestConfiguration(encryptionScheme: .ECC_V2)
-        config?.cardholderName = holderName
-        config?.primaryAccountSuffix = last4
-        config?.localizedDescription = localizedDescription
-        config?.primaryAccountIdentifier = cardId
+        // ⭐ Crear la configuración con el encryption scheme correcto
+        guard let config = PKAddPaymentPassRequestConfiguration(encryptionScheme: encryptionScheme) else {
+            sendError(command, "cannot_create_configuration")
+            return
+        }
         
-        // IMPORTANTE: PaymentNetwork debe coincidir con tu BIN
-        // config?.paymentNetwork = .masterCard  // o .visa
+        config.cardholderName = holderName
+        config.primaryAccountSuffix = last4
+        config.localizedDescription = localizedDescription
+        config.primaryAccountIdentifier = cardId
         
-        guard let config = config,
-              let vc = PKAddPaymentPassViewController(
-                requestConfiguration: config,
-                delegate: self
-              ) else {
+        // ⭐ CRÍTICO: Configurar el payment network según la marca de la tarjeta
+        if cardBrand.lowercased() == "visa" {
+            config.paymentNetwork = .visa
+        } else if cardBrand.lowercased() == "mastercard" || cardBrand.lowercased() == "master" {
+            config.paymentNetwork = .masterCard
+        } else {
+            // Por defecto Mastercard
+            config.paymentNetwork = .masterCard
+        }
+        
+        // ⭐ Crear el view controller
+        guard let vc = PKAddPaymentPassViewController(
+            requestConfiguration: config,
+            delegate: self
+        ) else {
             sendError(command, "cannot_create_view_controller")
             return
         }
         
         // Guardar opciones para usar en generateRequest
-        vc.view.tag = 999  // Tag temporal para identificar
         objc_setAssociatedObject(vc, "options", options, .OBJC_ASSOCIATION_RETAIN)
         
         self.addPaymentVC = vc
