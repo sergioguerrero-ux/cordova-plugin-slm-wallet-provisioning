@@ -25,9 +25,6 @@
         <!-- Archivo Swift -->
         <source-file src="src/ios/SLMWalletPlugin.swift"/>
         
-        <!-- Bridging Header (si usas Objective-C también) -->
-        <header-file src="src/ios/SLMWalletPlugin-Bridging-Header.h"/>
-        
         <!-- Framework de PassKit -->
         <framework src="PassKit.framework"/>
         
