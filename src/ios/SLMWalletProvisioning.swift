@@ -116,15 +116,14 @@ class SLMWalletProvisioning: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
         self.addPaymentPassVC = addPaymentPassVC
         UserDefaults.standard.set(cardId, forKey: "currentCardIdProvisioning")
         
+        guard let viewController = self.viewController else {
+            self.sendError("No view controller available")
+            return
+        }
+        
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            
-            guard let topViewController = self.getTopViewController() else {
-                self.sendError("No view controller available")
-                return
-            }
-            
-            topViewController.present(addPaymentPassVC, animated: true, completion: nil)
+            viewController.present(addPaymentPassVC, animated: true, completion: nil)
         }
     }
     
@@ -253,31 +252,6 @@ class SLMWalletProvisioning: CDVPlugin, PKAddPaymentPassViewControllerDelegate {
         default:
             return .masterCard
         }
-    }
-    
-    private func getTopViewController() -> UIViewController? {
-        // Método compatible con iOS 11+
-        var topController = UIApplication.shared.keyWindow?.rootViewController
-        
-        // Si no hay keyWindow, buscar en todas las windows
-        if topController == nil {
-            for window in UIApplication.shared.windows where window.isKeyWindow {
-                topController = window.rootViewController
-                break
-            }
-        }
-        
-        // Si aún no hay, tomar la primera window
-        if topController == nil {
-            topController = UIApplication.shared.windows.first?.rootViewController
-        }
-        
-        // Subir por la jerarquía hasta encontrar el top-most
-        while let presentedViewController = topController?.presentedViewController {
-            topController = presentedViewController
-        }
-        
-        return topController
     }
     
     private func sendSuccess(_ data: [String: Any]) {
