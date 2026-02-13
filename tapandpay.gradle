@@ -1,0 +1,13 @@
+def tapAndPayRepo = new File("${project.rootDir}/../../plugins/cordova-plugin-slm-wallet-provisioning/libs/tapandpay_skd")
+
+if (tapAndPayRepo.exists()) {
+    allprojects {
+        repositories {
+            maven {
+                url tapAndPayRepo
+            }
+        }
+    }
+} else {
+    project.logger.warn("TapAndPay repository not found at ${tapAndPayRepo}. Please make sure the library bundle is installed.")
+}

@@ -1,0 +1,52 @@
+{
+    "name": "cordova-plugin-slm-wallet-provisioning",
+    "version": "1.0.0",
+    "description": "Cordova plugin for Google Pay and Apple Wallet push provisioning with OPC (Opaque Payment Card) support",
+    "main": "www/WalletProvisioning.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/sergioguerrero-ux/cordova-plugin-slm-wallet-provisioning.git"
+    },
+    "keywords": [
+        "cordova",
+        "plugin",
+        "wallet",
+        "google-pay",
+        "apple-pay",
+        "push-provisioning",
+        "opc",
+        "tap-and-pay",
+        "tokenization",
+        "payment",
+        "ecosystem:cordova",
+        "cordova-android",
+        "cordova-ios"
+    ],
+    "engines": {
+        "cordovaDependencies": {
+            ">=8.0.0": {
+                "cordova-android": ">=9.0.0",
+                "cordova-ios": ">=6.0.0"
+            }
+        }
+    },
+    "author": "Sergio Guerrero",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/sergioguerrero-ux/cordova-plugin-slm-wallet-provisioning/issues"
+    },
+    "homepage": "https://github.com/sergioguerrero-ux/cordova-plugin-slm-wallet-provisioning#readme",
+    "cordova": {
+        "id": "cordova-plugin-slm-wallet-provisioning",
+        "platforms": [
+            "android",
+            "ios"
+        ]
+    },
+    "peerDependencies": {
+        "cordova": ">=8.0.0"
+    }
+}

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    id="cordova-plugin-slm-wallet-provisioning"
+    version="1.0.0">
+    
+    <name>SLM Wallet Provisioning</name>
+    <description>Plugin para tokenización y provisioning de tarjetas en Apple Wallet y Google Pay con Pomelo</description>
+    <license>MIT</license>
+    <keywords>wallet,apple pay,apple wallet,tokenization,provisioning,pomelo</keywords>
+    <repo>https://github.com/sergioguerrero-ux/cordova-plugin-slm-wallet-provisioning.git</repo>
+    <issue>https://github.com/sergioguerrero-ux/cordova-plugin-slm-wallet-provisioning/issues</issue>
+    
+    <js-module src="www/SLMWalletProvisioning.js" name="SLMWalletProvisioning">
+        <clobbers target="SLMWalletProvisioning" />
+    </js-module>
+    
+    <platform name="ios">
+        <preference name="SWIFTVERSION" default="5.0" />
+        <config-file target="config.xml" parent="/*">
+            <feature name="SLMWalletProvisioning">
+                <param name="ios-package" value="SLMWalletProvisioning"/>
+            </feature>
+        </config-file>
+        
+        <source-file src="src/ios/SLMWalletProvisioning.swift" />
+        
+        <framework src="PassKit.framework" />
+        <framework src="WatchConnectivity.framework" weak="true" />
+        
+        <config-file target="*-Debug.plist" parent="com.apple.developer.pass-type-identifiers">
+            <array>
+                <string>$(TeamIdentifierPrefix)*</string>
+            </array>
+        </config-file>
+        
+        <config-file target="*-Release.plist" parent="com.apple.developer.pass-type-identifiers">
+            <array>
+                <string>$(TeamIdentifierPrefix)*</string>
+            </array>
+        </config-file>
+        
+        <config-file target="*-Debug.plist" parent="com.apple.developer.payment-pass-provisioning">
+            <true/>
+        </config-file>
+        
+        <config-file target="*-Release.plist" parent="com.apple.developer.payment-pass-provisioning">
+            <true/>
+        </config-file>
+        <config-file target="*.entitlements" parent="com.apple.developer.pass-type-identifiers">
+            <array>
+                <string>$(TeamIdentifierPrefix)*</string>
+            </array>
+        </config-file>
+        
+        <config-file target="*.entitlements" parent="com.apple.developer.payment-pass-provisioning">
+            <true/>
+        </config-file>
+    </platform>
+    
+    <platform name="android">
+        <config-file target="res/xml/config.xml" parent="/*">
+            <feature name="WalletProvisioning">
+                <param name="android-package" value="com.slm.wallet.SLMWalletProvisioning" />
+                <param name="onload" value="true" />
+            </feature>
+        </config-file>
+
+        <config-file target="AndroidManifest.xml" parent="/*">
+            <uses-permission android:name="android.permission.INTERNET" />
+            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+            <uses-permission android:name="android.permission.NFC" />
+            <uses-feature android:name="android.hardware.nfc" android:required="false" />
+        </config-file>
+
+        <source-file src="src/android/SLMWalletProvisioning.java" 
+                     target-dir="src/com/slm/wallet" />
+
+        <framework src="com.google.android.gms:play-services-tapandpay:18.7.0" />
+        <framework src="com.google.android.gms:play-services-base:18.5.0" />
+        <framework src="tapandpay.gradle" custom="true" type="gradleReference" />
+        <preference name="AndroidXEnabled" value="true" />
+
+    </platform>
+    
+</plugin>
