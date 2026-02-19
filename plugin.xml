@@ -79,7 +79,6 @@
         <framework src="com.google.android.gms:play-services-tapandpay:18.7.0" />
         <framework src="com.google.android.gms:play-services-base:18.5.0" />
         <framework src="tapandpay.gradle" custom="true" type="gradleReference" />
-        <preference name="AndroidXEnabled" value="true" />
 
     </platform>
     
